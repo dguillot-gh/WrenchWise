@@ -1,0 +1,6 @@
+@CarCareHybrid.Backend_HostAddress = http://localhost:5064
+
+GET {{CarCareHybrid.Backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: carcare-postgres
+    environment:
+      POSTGRES_DB: carcare
+      POSTGRES_USER: carcare
+      POSTGRES_PASSWORD: carcarepw
+    volumes:
+      - carcare_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: CarCareHybrid.Backend/Dockerfile
+    container_name: carcare-api
+    depends_on:
+      - postgres
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__CarCareDb: Host=postgres;Port=5432;Database=carcare;Username=carcare;Password=carcarepw
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  carcare_pgdata:
