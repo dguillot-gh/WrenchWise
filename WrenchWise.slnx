@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/web/">
+    <Project Path="WrenchWise.Web/WrenchWise.Web.csproj" />
+  </Folder>
+  <Folder Name="/mobile/">
+    <Project Path="WrenchWise.Mobile/WrenchWise.Mobile.csproj">
+      <Deploy Solution="Debug|*" />
+    </Project>
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="WrenchWise.Shared/WrenchWise.Shared.csproj" />
+  </Folder>
+  <Folder Name="/backend/">
+    <Project Path="WrenchWise.Backend/WrenchWise.Backend.csproj" />
+  </Folder>
+</Solution>

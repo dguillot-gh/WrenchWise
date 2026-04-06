@@ -1,0 +1,91 @@
+@page "/timeline"
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Timeline</PageTitle>
+<h1>Vehicle Timeline</h1>
+<p>Fuel, service, tire, and reminder events in one feed.</p>
+
+@if (TimelineItems.Count == 0)
+{
+    <div class="alert alert-info">No timeline events yet for the current vehicle filter.</div>
+}
+else
+{
+    @foreach (var item in TimelineItems)
+    {
+        <div class="card p-3 mb-2">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <strong>@item.Title</strong>
+                    <div>@item.Description</div>
+                    <div class="text-muted">@item.EventDate.ToString("d") | @item.VehicleName</div>
+                </div>
+                @if (item.Amount.HasValue)
+                {
+                    <div class="text-end">@item.Amount.Value.ToString("C")</div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<TimelineItem> TimelineItems => BuildTimeline();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+    }
+
+    private List<TimelineItem> BuildTimeline()
+    {
+        var activeVehicle = WrenchWise.ActiveVehicleId;
+
+        var fuels = WrenchWise.FuelRecords
+            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
+            .Select(x => new TimelineItem(
+                DateTime.Parse(x.FillDate.ToString("yyyy-MM-dd")),
+                "Fuel Fill",
+                $"{x.Gallons} gal at {x.Odometer} miles ({x.FuelGrade})",
+                VehicleName(x.VehicleId),
+                x.TotalCost));
+
+        var maintenance = WrenchWise.MaintenanceRecords
+            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
+            .Select(x => new TimelineItem(
+                DateTime.Parse(x.ServiceDate.ToString("yyyy-MM-dd")),
+                x.ServiceType,
+                $"{x.Odometer} miles | {x.ShopName}",
+                VehicleName(x.VehicleId),
+                x.Cost));
+
+        var tires = WrenchWise.TireRecords
+            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
+            .Select(x => new TimelineItem(
+                DateTime.Parse(x.InstalledDate.ToString("yyyy-MM-dd")),
+                "Tire Installed",
+                $"{x.Position} - {x.BrandModel} at {x.InstalledOdometer} miles",
+                VehicleName(x.VehicleId),
+                x.PurchaseCost));
+
+        var reminders = WrenchWise.ServiceReminders
+            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
+            .Select(x => new TimelineItem(
+                DateTime.Parse((x.DueDate ?? DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd")),
+                "Reminder",
+                $"{x.Title} ({(x.IsCompleted ? "Completed" : "Open")})",
+                VehicleName(x.VehicleId),
+                null));
+
+        return fuels
+            .Concat(maintenance)
+            .Concat(tires)
+            .Concat(reminders)
+            .OrderByDescending(x => x.EventDate)
+            .ToList();
+    }
+
+    private string VehicleName(Guid id) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == id)?.Nickname ?? "Unknown";
+
+    private record TimelineItem(DateTime EventDate, string Title, string Description, string VehicleName, decimal? Amount);
+}

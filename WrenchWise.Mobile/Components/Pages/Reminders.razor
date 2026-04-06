@@ -1,0 +1,105 @@
+@page "/reminders"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Reminders</PageTitle>
+<h1>Service Reminders</h1>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <div class="alert alert-warning">Add a vehicle first.</div>
+}
+else
+{
+    <EditForm Model="_reminder" OnValidSubmit="SaveReminderAsync" class="card p-3 mb-3">
+        <DataAnnotationsValidator />
+        <div class="row g-2">
+            <div class="col-md-3">
+                <select class="form-select" @bind="_reminder.VehicleId">
+                    @foreach (var vehicle in WrenchWise.Vehicles)
+                    {
+                        <option value="@vehicle.Id">@vehicle.Nickname</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input class="form-control" @bind="_reminder.Title" placeholder="Reminder title" />
+            </div>
+            <div class="col-md-2">
+                <InputDate class="form-control" @bind-Value="_dueDate" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_reminder.DueOdometer" type="number" placeholder="Due odometer" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_reminder.RepeatEveryMiles" type="number" placeholder="Repeat miles" />
+            </div>
+            <div class="col-md-12">
+                <input class="form-control" @bind="_reminder.Notes" placeholder="Notes" />
+            </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Add Reminder</button>
+    </EditForm>
+}
+
+@foreach (var reminder in WrenchWise.ServiceReminders.OrderBy(x => x.IsCompleted).ThenBy(x => x.DueDate))
+{
+    var due = WrenchWise.IsReminderDue(reminder);
+    <div class="card p-3 mb-2 @(due ? "border border-danger" : string.Empty)">
+        <div class="d-flex justify-content-between">
+            <div>
+                <strong>@reminder.Title</strong> for @FindVehicle(reminder.VehicleId)
+                <div>Due date: @(reminder.DueDate?.ToString("d") ?? "N/A") • Due miles: @(reminder.DueOdometer?.ToString() ?? "N/A")</div>
+                <div>Status: @(reminder.IsCompleted ? "Completed" : due ? "Due now" : "Upcoming")</div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => WrenchWise.ToggleReminderStatusAsync(reminder.Id)">
+                    @(reminder.IsCompleted ? "Re-open" : "Complete")
+                </button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => WrenchWise.DeleteReminderAsync(reminder.Id)">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ServiceReminder _reminder = new();
+    private DateTime _dueDate = DateTime.Today.AddDays(30);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetReminder();
+    }
+
+    private async Task SaveReminderAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_reminder.Title))
+        {
+            return;
+        }
+
+        _reminder.DueDate = DateOnly.FromDateTime(_dueDate);
+
+        await WrenchWise.AddReminderAsync(_reminder);
+        ResetReminder();
+    }
+
+    private void ResetReminder()
+    {
+        _reminder = new ServiceReminder
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
+                ? WrenchWise.ActiveVehicleId
+                : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+        };
+        _dueDate = DateTime.Today.AddDays(30);
+    }
+
+    private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

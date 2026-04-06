@@ -1,0 +1,46 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<div class="page">
+    <main>
+        <div class="top-row px-3">
+            <select class="form-select form-select-sm active-vehicle" value="@WrenchWise.ActiveVehicleId" @onchange="HandleActiveVehicleChanged">
+                <option value="@Guid.Empty">All Vehicles</option>
+                @foreach (var vehicle in WrenchWise.Vehicles)
+                {
+                    <option value="@vehicle.Id">@vehicle.Nickname</option>
+                }
+            </select>
+            <span class="sync-pill">Pending: @WrenchWise.PendingSyncCount</span>
+            <span class="sync-pill">Last sync: @(WrenchWise.LastSyncUtc?.ToLocalTime().ToString("g") ?? "Never")</span>
+        </div>
+
+        <article class="content px-3">
+            @Body
+        </article>
+    </main>
+
+    <a class="fab-add" href="quick-add">+</a>
+    <NavMenu />
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+    }
+
+    private async Task HandleActiveVehicleChanged(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var selected))
+        {
+            await WrenchWise.SetActiveVehicleAsync(selected);
+        }
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

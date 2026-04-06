@@ -1,0 +1,52 @@
+@page "/settings"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Settings</PageTitle>
+<h1>Settings</h1>
+<p>Configure app behavior and backend connection.</p>
+
+<div class="card p-3 mb-3">
+    <label class="form-label">Backend API URL</label>
+    <input class="form-control mb-2" @bind="_apiUrl" placeholder="http://10.0.2.2:18080" />
+    <small class="text-muted">Example for Android emulator: `http://10.0.2.2:18080`</small>
+    <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-primary" @onclick="SaveApiUrlAsync">Save URL</button>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(_status))
+    {
+        <div class="mt-2 alert @(_error ? "alert-danger" : "alert-success")">@_status</div>
+    }
+</div>
+
+@code {
+    private string _apiUrl = string.Empty;
+    private string _status = string.Empty;
+    private bool _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        _apiUrl = WrenchWise.ApiBaseUrl;
+    }
+
+    private async Task SaveApiUrlAsync()
+    {
+        try
+        {
+            await WrenchWise.SetApiBaseUrlAsync(_apiUrl);
+            _status = "API URL saved.";
+            _error = false;
+        }
+        catch (Exception ex)
+        {
+            _status = ex.Message;
+            _error = true;
+        }
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

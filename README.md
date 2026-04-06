@@ -2,9 +2,9 @@
 
 This workspace includes:
 
-- `CarCareHybrid` - .NET MAUI Blazor Hybrid mobile/desktop frontend
-- `CarCareHybrid.Backend` - ASP.NET Core API (Docker-ready)
-- `CarCareHybrid.Shared` - shared models/sync contracts
+- `WrenchWise.Mobile` - .NET MAUI Blazor Hybrid Android frontend
+- `WrenchWise.Backend` - ASP.NET Core API (Docker-ready)
+- `WrenchWise.Shared` - shared models/sync contracts
 
 ## Architecture
 
@@ -15,7 +15,7 @@ This workspace includes:
 
 ## Run Backend with Docker + Postgres
 
-From `D:\maintenance app`:
+From `D:\repo\maintenance app`:
 
 ```powershell
 docker compose up -d --build
@@ -23,20 +23,20 @@ docker compose up -d --build
 
 Backend endpoints:
 
-- Health: `http://<server-ip>:8080/api/health`
-- Sync: `http://<server-ip>:8080/api/sync`
+- Health: `http://<server-ip>:18080/api/health`
+- Sync: `http://<server-ip>:18080/api/sync`
 
 ## App Setup
 
 1. Run the MAUI app.
 2. Open the **Sync** page.
 3. Set API URL to your server:
-   - LAN example: `http://192.168.1.25:8080`
-   - Tailscale example: `http://100.x.y.z:8080`
+   - LAN example: `http://192.168.1.25:18080`
+   - Tailscale example: `http://100.x.y.z:18080`
 4. Tap **Sync Now**.
 
 ## Notes
 
 - Default conflict strategy is last-write-wins per entity.
 - Sync operations are idempotent on the backend via operation IDs.
-- Postgres data is persisted in Docker volume `carcare_pgdata`.
+- Postgres data is persisted in Docker volume `wrenchwise_pgdata`.

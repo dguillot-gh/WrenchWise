@@ -1,0 +1,117 @@
+@page "/tires"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Tires</PageTitle>
+<h1>Tire Tracking</h1>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <div class="alert alert-warning">Add a vehicle first.</div>
+}
+else
+{
+    <EditForm Model="_tire" OnValidSubmit="SaveTireAsync" class="card p-3 mb-3">
+        <div class="row g-2">
+            <div class="col-md-3">
+                <select class="form-select" @bind="_tire.VehicleId" @bind:after="ApplySuggestedOdometer">
+                    @foreach (var vehicle in WrenchWise.Vehicles)
+                    {
+                        <option value="@vehicle.Id">@vehicle.Nickname</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" @bind="_tire.Position">
+                    <option>Front Left</option>
+                    <option>Front Right</option>
+                    <option>Rear Left</option>
+                    <option>Rear Right</option>
+                    <option>Spare</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input class="form-control" @bind="_tire.BrandModel" placeholder="Brand and model" />
+            </div>
+            <div class="col-md-2">
+                <InputDate class="form-control" @bind-Value="_installedDate" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_tire.InstalledOdometer" type="number" placeholder="Install odo" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_tire.PurchaseCost" type="number" step="0.01" placeholder="Cost" />
+            </div>
+            <div class="col-md-10">
+                <input class="form-control" @bind="_tire.Notes" placeholder="Notes" />
+            </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Add Tire Record</button>
+    </EditForm>
+}
+
+@foreach (var tire in WrenchWise.TireRecords.OrderByDescending(x => x.InstalledDate))
+{
+    <div class="card p-3 mb-2">
+        <div class="d-flex justify-content-between">
+            <div>
+                <strong>@FindVehicle(tire.VehicleId)</strong> - @tire.Position
+                <div>@tire.BrandModel</div>
+                <div>Installed: @tire.InstalledDate.ToString("d") at @tire.InstalledOdometer miles</div>
+                <div>Cost: @tire.PurchaseCost.ToString("C")</div>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" @onclick="() => WrenchWise.DeleteTireRecordAsync(tire.Id)">Delete</button>
+        </div>
+    </div>
+}
+
+@code {
+    private TireRecord _tire = new();
+    private DateTime _installedDate = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetForm();
+    }
+
+    private async Task SaveTireAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_tire.BrandModel))
+        {
+            return;
+        }
+
+        _tire.InstalledDate = DateOnly.FromDateTime(_installedDate);
+        await WrenchWise.AddTireRecordAsync(_tire);
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        _tire = new TireRecord
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
+                ? WrenchWise.ActiveVehicleId
+                : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty,
+            Position = "Front Left"
+        };
+        _installedDate = DateTime.Today;
+        ApplySuggestedOdometer();
+    }
+
+    private void ApplySuggestedOdometer()
+    {
+        if (_tire.VehicleId != Guid.Empty)
+        {
+            _tire.InstalledOdometer = WrenchWise.GetSuggestedOdometer(_tire.VehicleId);
+        }
+    }
+
+    private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

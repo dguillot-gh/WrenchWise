@@ -1,0 +1,77 @@
+@page "/"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>WrenchWise Dashboard</h1>
+<p>Offline-first logging with queued sync to your self-hosted API.</p>
+
+@if (!_ready)
+{
+    <p>Loading garage...</p>
+}
+else if (WrenchWise.Vehicles.Count == 0)
+{
+    <div class="alert alert-info">No vehicles yet. Add one in the Vehicles tab.</div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="card p-3">
+                <div class="text-muted">Vehicles</div>
+                <div class="display-6">@WrenchWise.Vehicles.Count</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3">
+                <div class="text-muted">Maintenance Logs</div>
+                <div class="display-6">@WrenchWise.MaintenanceRecords.Count</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3">
+                <div class="text-muted">Fuel Entries</div>
+                <div class="display-6">@WrenchWise.FuelRecords.Count</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3">
+                <div class="text-muted">Pending Sync</div>
+                <div class="display-6">@WrenchWise.PendingSyncCount</div>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var vehicle in WrenchWise.Vehicles.OrderByDescending(x => x.UpdatedUtc))
+    {
+        <div class="card p-3 mb-3">
+            <h4>@vehicle.Nickname (@vehicle.Year @vehicle.Make @vehicle.Model)</h4>
+            <div>Odometer: @vehicle.CurrentOdometer miles</div>
+            <div>Total spend: @WrenchWise.GetTotalSpent(vehicle.Id).ToString("C")</div>
+            <div>Average MPG: @WrenchWise.GetAverageMpg(vehicle.Id)</div>
+        </div>
+    }
+}
+
+@code {
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        _ready = true;
+    }
+
+    private void HandleChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        WrenchWise.Changed -= HandleChanged;
+    }
+}

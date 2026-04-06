@@ -1,0 +1,178 @@
+@page "/fuel"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Fuel</PageTitle>
+<h1>Fuel Log</h1>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <div class="alert alert-warning">Add a vehicle first.</div>
+}
+else
+{
+    <EditForm Model="_record" OnValidSubmit="SaveFuelAsync" class="card p-3 mb-3">
+        <DataAnnotationsValidator />
+        <div class="row g-2">
+            <div class="col-md-3">
+                <select class="form-select" @bind="_record.VehicleId" @bind:after="ApplySuggestedOdometer">
+                    @foreach (var vehicle in WrenchWise.Vehicles)
+                    {
+                        <option value="@vehicle.Id">@vehicle.Nickname</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <InputDate class="form-control" @bind-Value="_fillDate" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_record.Odometer" type="number" placeholder="Odometer" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_record.Gallons" type="number" step="0.01" placeholder="Gallons" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_record.TotalCost" type="number" step="0.01" placeholder="Total $" />
+            </div>
+            <div class="col-md-1 form-check d-flex align-items-center ps-4">
+                <input class="form-check-input" type="checkbox" @bind="_record.FullTank" />
+            </div>
+            <div class="col-md-3">
+                <input class="form-control" @bind="_record.Station" placeholder="Station" />
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" @bind="_record.FuelGrade">
+                    <option>Regular</option>
+                    <option>Midgrade</option>
+                    <option>Premium</option>
+                    <option>Diesel</option>
+                    <option>E85</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_record.EthanolPercent" type="number" step="1" placeholder="Ethanol %" />
+            </div>
+            <div class="col-md-5">
+                <input class="form-control" @bind="_record.AdditiveNotes" placeholder="Additives / quality notes" />
+            </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Add Fuel Entry</button>
+    </EditForm>
+}
+
+@foreach (var record in WrenchWise.FuelRecords.OrderByDescending(x => x.FillDate))
+{
+    <div class="card p-3 mb-2">
+        <div class="d-flex justify-content-between">
+            <div>
+                <strong>@FindVehicle(record.VehicleId)</strong> - @record.FillDate.ToString("d")
+                <div>@record.Gallons gal at @record.Odometer miles | @record.TotalCost.ToString("C")</div>
+                <div>@record.FuelGrade @(record.EthanolPercent.HasValue ? $"- E{record.EthanolPercent.Value:0}" : string.Empty) | Station: @(string.IsNullOrWhiteSpace(record.Station) ? "N/A" : record.Station)</div>
+                @if (!string.IsNullOrWhiteSpace(record.ReceiptImagePath))
+                {
+                    <div class="text-muted">Receipt: saved</div>
+                }
+            </div>
+            <div class="d-flex flex-column gap-2">
+                <button class="btn btn-sm btn-outline-primary" @onclick="() => AttachReceiptAsync(record.Id)">Attach Receipt</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditOcr(record)">OCR Text</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => WrenchWise.DeleteFuelRecordAsync(record.Id)">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_ocrFuelId != Guid.Empty)
+{
+    <div class="card p-3 mt-3">
+        <div class="mb-2">Receipt OCR Text (paste or edit)</div>
+        <textarea class="form-control mb-2" rows="4" @bind="_ocrText"></textarea>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="SaveOcrTextAsync">Apply OCR Hints</button>
+            <button class="btn btn-outline-secondary" @onclick="CancelOcr">Cancel</button>
+        </div>
+    </div>
+}
+
+@code {
+    private FuelRecord _record = new();
+    private DateTime _fillDate = DateTime.Today;
+    private Guid _ocrFuelId;
+    private string _ocrText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetRecord();
+    }
+
+    private async Task SaveFuelAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || _record.Gallons <= 0)
+        {
+            return;
+        }
+
+        _record.FillDate = DateOnly.FromDateTime(_fillDate);
+        await WrenchWise.AddFuelRecordAsync(_record);
+        ResetRecord();
+    }
+
+    private async Task AttachReceiptAsync(Guid fuelId)
+    {
+        await WrenchWise.AttachReceiptPhotoAsync(fuelId);
+    }
+
+    private void EditOcr(FuelRecord record)
+    {
+        _ocrFuelId = record.Id;
+        _ocrText = record.ReceiptOcrText;
+    }
+
+    private async Task SaveOcrTextAsync()
+    {
+        if (_ocrFuelId == Guid.Empty)
+        {
+            return;
+        }
+
+        await WrenchWise.ApplyReceiptTextAsync(_ocrFuelId, _ocrText);
+        CancelOcr();
+    }
+
+    private void CancelOcr()
+    {
+        _ocrFuelId = Guid.Empty;
+        _ocrText = string.Empty;
+    }
+
+    private void ResetRecord()
+    {
+        _record = new FuelRecord
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
+                ? WrenchWise.ActiveVehicleId
+                : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty,
+            FullTank = true,
+            FuelGrade = "Regular",
+            EthanolPercent = 10
+        };
+        _fillDate = DateTime.Today;
+        ApplySuggestedOdometer();
+    }
+
+    private void ApplySuggestedOdometer()
+    {
+        if (_record.VehicleId != Guid.Empty)
+        {
+            _record.Odometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);
+        }
+    }
+
+    private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

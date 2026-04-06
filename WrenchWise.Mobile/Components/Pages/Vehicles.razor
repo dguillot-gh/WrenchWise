@@ -1,0 +1,126 @@
+@page "/vehicles"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Vehicles</PageTitle>
+<h1>Vehicle Profile Management</h1>
+<p>Create, edit, and remove vehicle profiles. Changes save offline immediately and sync later.</p>
+
+<EditForm Model="_profileForm" OnValidSubmit="SaveVehicleAsync" class="card p-3 mb-3">
+    <DataAnnotationsValidator />
+    <div class="row g-2">
+        <div class="col-md-3">
+            <input class="form-control" @bind="_profileForm.Nickname" placeholder="Nickname" />
+        </div>
+        <div class="col-md-2">
+            <input class="form-control" @bind="_profileForm.Year" type="number" placeholder="Year" />
+        </div>
+        <div class="col-md-2">
+            <input class="form-control" @bind="_profileForm.Make" placeholder="Make" />
+        </div>
+        <div class="col-md-2">
+            <input class="form-control" @bind="_profileForm.Model" placeholder="Model" />
+        </div>
+        <div class="col-md-3">
+            <input class="form-control" @bind="_profileForm.Vin" placeholder="VIN (optional)" />
+        </div>
+        <div class="col-md-3">
+            <input class="form-control" @bind="_profileForm.CurrentOdometer" type="number" placeholder="Current odometer" />
+        </div>
+        <div class="col-md-9">
+            <input class="form-control" @bind="_profileForm.Notes" placeholder="Profile notes" />
+        </div>
+    </div>
+    <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">@(_editMode ? "Save Profile" : "Add Vehicle")</button>
+        @if (_editMode)
+        {
+            <button class="btn btn-outline-secondary" type="button" @onclick="CancelEdit">Cancel</button>
+        }
+    </div>
+</EditForm>
+
+@foreach (var vehicle in WrenchWise.Vehicles.OrderByDescending(x => x.UpdatedUtc))
+{
+    <div class="card p-3 mb-2">
+        <div class="d-flex justify-content-between">
+            <div>
+                <strong>@vehicle.Nickname</strong> - @vehicle.Year @vehicle.Make @vehicle.Model
+                <div class="text-muted">VIN: @(string.IsNullOrWhiteSpace(vehicle.Vin) ? "N/A" : vehicle.Vin)</div>
+                <div>Odometer: @vehicle.CurrentOdometer miles</div>
+                <div>Notes: @(string.IsNullOrWhiteSpace(vehicle.Notes) ? "None" : vehicle.Notes)</div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" @onclick="() => BeginEdit(vehicle)">Edit</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteVehicleAsync(vehicle.Id)">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Vehicle _profileForm = new();
+    private bool _editMode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetForm();
+    }
+
+    private async Task SaveVehicleAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_profileForm.Nickname) ||
+            string.IsNullOrWhiteSpace(_profileForm.Make) ||
+            string.IsNullOrWhiteSpace(_profileForm.Model))
+        {
+            return;
+        }
+
+        if (_editMode)
+        {
+            await WrenchWise.UpdateVehicleAsync(_profileForm);
+        }
+        else
+        {
+            await WrenchWise.AddVehicleAsync(_profileForm);
+        }
+
+        ResetForm();
+    }
+
+    private void BeginEdit(Vehicle vehicle)
+    {
+        _editMode = true;
+        _profileForm = new Vehicle
+        {
+            Id = vehicle.Id,
+            Nickname = vehicle.Nickname,
+            Make = vehicle.Make,
+            Model = vehicle.Model,
+            Year = vehicle.Year,
+            Vin = vehicle.Vin,
+            CurrentOdometer = vehicle.CurrentOdometer,
+            Notes = vehicle.Notes,
+            UpdatedUtc = vehicle.UpdatedUtc
+        };
+    }
+
+    private void CancelEdit() => ResetForm();
+
+    private Task DeleteVehicleAsync(Guid id) => WrenchWise.RemoveVehicleAsync(id);
+
+    private void ResetForm()
+    {
+        _editMode = false;
+        _profileForm = new Vehicle
+        {
+            Year = DateTime.Today.Year
+        };
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

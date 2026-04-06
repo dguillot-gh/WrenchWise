@@ -1,0 +1,210 @@
+@page "/maintenance"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Maintenance</PageTitle>
+<h1>Maintenance</h1>
+
+<div class="card p-3 mb-3">
+    <div class="mb-2">Quick presets</div>
+    <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-primary btn-sm" @onclick="ApplyOilPreset">Oil Change</button>
+        <button class="btn btn-outline-primary btn-sm" @onclick="ApplyTireRotationPreset">Tire Rotation</button>
+        <button class="btn btn-outline-primary btn-sm" @onclick="ApplyInspectionPreset">Inspection</button>
+        <button class="btn btn-outline-primary btn-sm" @onclick="ApplyBrakePreset">Brake Service</button>
+    </div>
+</div>
+
+<div class="card p-3 mb-3">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input class="form-control" @bind="_searchText" placeholder="Search service/shop/notes" />
+        </div>
+        <div class="col-md-2">
+            <input class="form-control" @bind="_minCost" type="number" step="0.01" placeholder="Min $" />
+        </div>
+        <div class="col-md-2">
+            <input class="form-control" @bind="_maxCost" type="number" step="0.01" placeholder="Max $" />
+        </div>
+        <div class="col-md-2">
+            <InputDate class="form-control" @bind-Value="_fromDate" />
+        </div>
+        <div class="col-md-2">
+            <InputDate class="form-control" @bind-Value="_toDate" />
+        </div>
+    </div>
+    <small class="text-muted mt-2">Showing @FilteredMaintenanceRecords.Count records</small>
+</div>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <div class="alert alert-warning">Add a vehicle first.</div>
+}
+else
+{
+    <EditForm Model="_record" OnValidSubmit="SaveMaintenanceAsync" class="card p-3 mb-3">
+        <DataAnnotationsValidator />
+        <div class="row g-2">
+            <div class="col-md-3">
+                <select class="form-select" @bind="_record.VehicleId" @bind:after="ApplySuggestedOdometer">
+                    @foreach (var vehicle in WrenchWise.Vehicles)
+                    {
+                        <option value="@vehicle.Id">@vehicle.Nickname</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input class="form-control" @bind="_record.ServiceType" placeholder="Service type" />
+            </div>
+            <div class="col-md-2">
+                <InputDate class="form-control" @bind-Value="_serviceDate" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_record.Odometer" type="number" placeholder="Odometer" />
+            </div>
+            <div class="col-md-2">
+                <input class="form-control" @bind="_record.Cost" type="number" step="0.01" placeholder="Cost" />
+            </div>
+            <div class="col-md-4">
+                <input class="form-control" @bind="_record.ShopName" placeholder="Shop" />
+            </div>
+            <div class="col-md-8">
+                <input class="form-control" @bind="_record.Notes" placeholder="Notes" />
+            </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Add Maintenance</button>
+    </EditForm>
+}
+
+@foreach (var record in FilteredMaintenanceRecords)
+{
+    <div class="card p-3 mb-2">
+        <div class="d-flex justify-content-between">
+            <div>
+                <strong>@FindVehicle(record.VehicleId)</strong> - @record.ServiceType
+                <div>@record.ServiceDate.ToString("d") at @record.Odometer miles</div>
+                <div>Cost: @record.Cost.ToString("C") | Shop: @(string.IsNullOrWhiteSpace(record.ShopName) ? "N/A" : record.ShopName)</div>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" @onclick="() => WrenchWise.DeleteMaintenanceRecordAsync(record.Id)">Delete</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "preset")]
+    public string? Preset { get; set; }
+
+    private MaintenanceRecord _record = new();
+    private DateTime _serviceDate = DateTime.Today;
+    private string _searchText = string.Empty;
+    private decimal? _minCost;
+    private decimal? _maxCost;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+
+    private List<MaintenanceRecord> FilteredMaintenanceRecords
+    {
+        get
+        {
+            var query = WrenchWise.MaintenanceRecords.AsEnumerable();
+
+            if (WrenchWise.ActiveVehicleId != Guid.Empty)
+            {
+                query = query.Where(x => x.VehicleId == WrenchWise.ActiveVehicleId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                var term = _searchText.Trim();
+                query = query.Where(x =>
+                    x.ServiceType.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    x.ShopName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    x.Notes.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (_minCost.HasValue)
+            {
+                query = query.Where(x => x.Cost >= _minCost.Value);
+            }
+
+            if (_maxCost.HasValue)
+            {
+                query = query.Where(x => x.Cost <= _maxCost.Value);
+            }
+
+            if (_fromDate.HasValue)
+            {
+                var from = DateOnly.FromDateTime(_fromDate.Value);
+                query = query.Where(x => x.ServiceDate >= from);
+            }
+
+            if (_toDate.HasValue)
+            {
+                var to = DateOnly.FromDateTime(_toDate.Value);
+                query = query.Where(x => x.ServiceDate <= to);
+            }
+
+            return query.OrderByDescending(x => x.ServiceDate).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetRecord();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(Preset))
+        {
+            ApplyPreset(Preset);
+        }
+    }
+
+    private async Task SaveMaintenanceAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_record.ServiceType))
+        {
+            return;
+        }
+
+        _record.ServiceDate = DateOnly.FromDateTime(_serviceDate);
+        await WrenchWise.AddMaintenanceRecordAsync(_record);
+        ResetRecord();
+    }
+
+    private void ApplyPreset(string preset) => _record.ServiceType = preset;
+    private void ApplyOilPreset() => ApplyPreset("Oil Change");
+    private void ApplyTireRotationPreset() => ApplyPreset("Tire Rotation");
+    private void ApplyInspectionPreset() => ApplyPreset("Inspection");
+    private void ApplyBrakePreset() => ApplyPreset("Brake Service");
+
+    private void ResetRecord()
+    {
+        _record = new MaintenanceRecord
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
+                ? WrenchWise.ActiveVehicleId
+                : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+        };
+        _serviceDate = DateTime.Today;
+        ApplySuggestedOdometer();
+    }
+
+    private void ApplySuggestedOdometer()
+    {
+        if (_record.VehicleId != Guid.Empty)
+        {
+            _record.Odometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);
+        }
+    }
+
+    private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

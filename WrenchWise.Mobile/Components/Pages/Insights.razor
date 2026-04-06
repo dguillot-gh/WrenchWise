@@ -1,0 +1,78 @@
+@page "/insights"
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Insights</PageTitle>
+<h1>Cost and MPG Insights</h1>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <div class="alert alert-warning">Add a vehicle first.</div>
+}
+else
+{
+    <div class="card p-3 mb-3">
+        <label class="form-label">Vehicle</label>
+        <select class="form-select" @bind="_vehicleId">
+            @foreach (var vehicle in WrenchWise.Vehicles)
+            {
+                <option value="@vehicle.Id">@vehicle.Nickname</option>
+            }
+        </select>
+    </div>
+
+    @if (_vehicleId != Guid.Empty)
+    {
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <div class="text-muted">Total Spend</div>
+                    <div class="display-6">@WrenchWise.GetTotalSpent(_vehicleId).ToString("C")</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <div class="text-muted">Average MPG</div>
+                    <div class="display-6">@WrenchWise.GetAverageMpg(_vehicleId)</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <div class="text-muted">Cost Per Mile</div>
+                    <div class="display-6">@WrenchWise.GetCostPerMile(_vehicleId).ToString("C4")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card p-3 mb-3">
+            <h4>Monthly Spend (Last 6 months)</h4>
+            @foreach (var month in WrenchWise.GetMonthlySpend(_vehicleId))
+            {
+                <div class="d-flex justify-content-between border-bottom py-2">
+                    <span>@month.Month</span>
+                    <span>Fuel @month.Fuel.ToString("C") | Service @month.Maintenance.ToString("C") | Tires @month.Tires.ToString("C")</span>
+                </div>
+            }
+        </div>
+
+        <div class="card p-3 mb-3">
+            <h4>MPG by Fuel Grade</h4>
+            @foreach (var grade in WrenchWise.GetMpgByGrade(_vehicleId))
+            {
+                <div class="d-flex justify-content-between border-bottom py-2">
+                    <span>@grade.Grade</span>
+                    <span>@grade.Mpg MPG</span>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private Guid _vehicleId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        _vehicleId = WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty;
+    }
+}

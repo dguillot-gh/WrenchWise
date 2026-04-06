@@ -1,0 +1,149 @@
+@page "/trip-mode"
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Trip Mode</PageTitle>
+<h1>Trip Mode</h1>
+<p>Quick road-trip logging for fuel and expenses.</p>
+
+@if (WrenchWise.ActiveTrip is null)
+{
+    @if (WrenchWise.Vehicles.Count == 0)
+    {
+        <div class="alert alert-warning">Add a vehicle first.</div>
+    }
+    else
+    {
+        <div class="card p-3 mb-3">
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <select class="form-select" @bind="_tripVehicleId" @bind:after="SetTripStartOdo">
+                        @foreach (var vehicle in WrenchWise.Vehicles)
+                        {
+                            <option value="@vehicle.Id">@vehicle.Nickname</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input class="form-control" @bind="_tripName" placeholder="Trip name" />
+                </div>
+                <div class="col-md-4">
+                    <input class="form-control" type="number" @bind="_tripStartOdo" placeholder="Start odometer" />
+                </div>
+            </div>
+            <button class="btn btn-primary mt-3" @onclick="StartTripAsync">Start Trip</button>
+        </div>
+    }
+}
+else
+{
+    <div class="card p-3 mb-3">
+        <h4>@WrenchWise.ActiveTrip.TripName</h4>
+        <div>Vehicle: @VehicleName(WrenchWise.ActiveTrip.VehicleId)</div>
+        <div>Start: @WrenchWise.ActiveTrip.StartDate.ToString("d") at @WrenchWise.ActiveTrip.StartOdometer miles</div>
+    </div>
+
+    <div class="card p-3 mb-3">
+        <h5>Quick Fuel</h5>
+        <div class="row g-2">
+            <div class="col-md-3"><input class="form-control" type="number" step="0.01" @bind="_tripFuelGallons" placeholder="Gallons" /></div>
+            <div class="col-md-3"><input class="form-control" type="number" step="0.01" @bind="_tripFuelCost" placeholder="Cost" /></div>
+            <div class="col-md-3"><input class="form-control" type="number" @bind="_tripFuelOdo" placeholder="Odometer" /></div>
+            <div class="col-md-3"><input class="form-control" @bind="_tripFuelStation" placeholder="Station" /></div>
+        </div>
+        <button class="btn btn-outline-primary mt-3" @onclick="AddTripFuelAsync">Add Trip Fuel</button>
+    </div>
+
+    <div class="card p-3 mb-3">
+        <h5>Quick Expense</h5>
+        <div class="row g-2">
+            <div class="col-md-4"><input class="form-control" type="number" step="0.01" @bind="_tripExpenseAmount" placeholder="Amount" /></div>
+            <div class="col-md-4"><input class="form-control" type="number" @bind="_tripExpenseOdo" placeholder="Odometer" /></div>
+            <div class="col-md-4"><input class="form-control" @bind="_tripExpenseDescription" placeholder="Description" /></div>
+        </div>
+        <button class="btn btn-outline-primary mt-3" @onclick="AddTripExpenseAsync">Add Trip Expense</button>
+    </div>
+
+    <div class="card p-3">
+        <h5>End Trip</h5>
+        <div class="row g-2">
+            <div class="col-md-4"><input class="form-control" type="number" @bind="_tripEndOdo" placeholder="Ending odometer" /></div>
+        </div>
+        <button class="btn btn-danger mt-3" @onclick="EndTripAsync">End Trip</button>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_status))
+{
+    <div class="alert @(_error ? "alert-danger" : "alert-success") mt-3">@_status</div>
+}
+
+@code {
+    private Guid _tripVehicleId;
+    private string _tripName = "Road Trip";
+    private int _tripStartOdo;
+    private decimal _tripFuelGallons;
+    private decimal _tripFuelCost;
+    private int _tripFuelOdo;
+    private string _tripFuelStation = string.Empty;
+    private decimal _tripExpenseAmount;
+    private int _tripExpenseOdo;
+    private string _tripExpenseDescription = string.Empty;
+    private int _tripEndOdo;
+    private string _status = string.Empty;
+    private bool _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        _tripVehicleId = WrenchWise.ActiveVehicleId != Guid.Empty ? WrenchWise.ActiveVehicleId : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty;
+        SetTripStartOdo();
+    }
+
+    private async Task StartTripAsync()
+    {
+        var ok = await WrenchWise.StartTripAsync(_tripVehicleId, _tripName, _tripStartOdo);
+        _status = ok ? "Trip started." : "Could not start trip.";
+        _error = !ok;
+        if (ok)
+        {
+            _tripFuelOdo = _tripStartOdo;
+            _tripExpenseOdo = _tripStartOdo;
+            _tripEndOdo = _tripStartOdo;
+        }
+    }
+
+    private async Task AddTripFuelAsync()
+    {
+        var ok = await WrenchWise.AddTripFuelAsync(_tripFuelGallons, _tripFuelCost, _tripFuelOdo, _tripFuelStation, "Regular");
+        _status = ok ? "Trip fuel added." : "No active trip.";
+        _error = !ok;
+    }
+
+    private async Task AddTripExpenseAsync()
+    {
+        var ok = await WrenchWise.AddTripExpenseAsync(_tripExpenseAmount, _tripExpenseOdo, _tripExpenseDescription);
+        _status = ok ? "Trip expense added." : "No active trip.";
+        _error = !ok;
+    }
+
+    private async Task EndTripAsync()
+    {
+        await WrenchWise.EndTripAsync(_tripEndOdo);
+        _status = "Trip ended.";
+        _error = false;
+    }
+
+    private void SetTripStartOdo()
+    {
+        if (_tripVehicleId != Guid.Empty)
+        {
+            var suggested = WrenchWise.GetSuggestedOdometer(_tripVehicleId);
+            _tripStartOdo = suggested;
+            _tripFuelOdo = suggested;
+            _tripExpenseOdo = suggested;
+            _tripEndOdo = suggested;
+        }
+    }
+
+    private string VehicleName(Guid id) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == id)?.Nickname ?? "Unknown";
+}

@@ -1,0 +1,59 @@
+.page {
+    min-height: 100vh;
+}
+
+main {
+    min-height: 100vh;
+}
+
+.top-row {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background-color: #101922;
+    border-bottom: 1px solid #2a394a;
+    min-height: 3.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.active-vehicle {
+    max-width: 220px;
+    min-width: 160px;
+}
+
+.content {
+    padding-top: 1rem;
+    padding-bottom: 7.2rem;
+}
+
+.sync-pill {
+    font-size: 0.8rem;
+    background: #1d2a38;
+    color: #b8d7ff;
+    border: 1px solid #35516b;
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+}
+
+.fab-add {
+    position: fixed;
+    right: 1rem;
+    bottom: 5.5rem;
+    z-index: 120;
+    width: 3.1rem;
+    height: 3.1rem;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 2rem;
+    line-height: 1;
+    color: #08130f;
+    background: #35c2a1;
+    border: 1px solid #35c2a1;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
