@@ -45,49 +45,4 @@
     }
 }
 
-@code {
-    private bool _showMore;
-    private bool _sheetVisible;
 
-    protected override void OnInitialized()
-    {
-        Nav.LocationChanged += OnLocationChanged;
-    }
-
-    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
-    {
-        if (_showMore)
-        {
-            _showMore = false;
-            _sheetVisible = false;
-            InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task ToggleMore()
-    {
-        if (_showMore)
-        {
-            CloseMore();
-        }
-        else
-        {
-            _showMore = true;
-            StateHasChanged();
-            await Task.Delay(20);
-            _sheetVisible = true;
-            StateHasChanged();
-        }
-    }
-
-    private void CloseMore()
-    {
-        _sheetVisible = false;
-        _showMore = false;
-    }
-
-    public void Dispose()
-    {
-        Nav.LocationChanged -= OnLocationChanged;
-    }
-}
