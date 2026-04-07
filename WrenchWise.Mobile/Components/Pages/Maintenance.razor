@@ -1,0 +1,313 @@
+@page "/maintenance"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Service</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">Service</MudText>
+    @if (WrenchWise.Vehicles.Count > 0)
+    {
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="ToggleForm" Label="Add New" />
+    }
+</div>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <MudPaper Class="pa-8 d-flex flex-column align-center justify-center mud-text-secondary" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Size="Size.Large" Class="mb-4 opacity-20" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h6">No Vehicles Found</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-4">Please add a vehicle first to start logging service.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="vehicles">Go to Vehicles</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudCollapse Expanded="_showForm">
+        <MudCard Elevation="4" Class="mb-6 border-l-4 border-warning">
+            <MudCardHeader>
+                <CardHeaderAvatar>
+                    <MudAvatar Color="Color.Warning" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Filled.Build" /></MudAvatar>
+                </CardHeaderAvatar>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">New Service Record</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.caption" Class="mb-2 d-block opacity-60">QUICK PRESETS</MudText>
+                <MudChipSet T="string" SelectionMode="SelectionMode.SingleSelection" SelectedValue="_record.ServiceType" SelectedValueChanged="OnPresetSelected" Class="mb-4">
+                    @foreach (var p in _presets)
+                    {
+                        <MudChip Value="@p" Text="@p" Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" />
+                    }
+                </MudChipSet>
+
+                <EditForm Model="_record" OnValidSubmit="SaveRecordAsync">
+                    <DataAnnotationsValidator />
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="Guid" Label="Vehicle" @bind-Value="_record.VehicleId" @bind-Value:after="ApplySuggestedOdometer" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var vehicle in WrenchWise.Vehicles)
+                                {
+                                    <MudSelectItem Value="@vehicle.Id">@vehicle.Nickname</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Service Type" @bind-Value="_record.ServiceType" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudDatePicker Label="Date" @bind-Date="_serviceDate" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="6" sm="4">
+                            <MudNumericField T="int" Label="Odometer" @bind-Value="_record.Odometer" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="6" sm="4">
+                            <MudNumericField T="decimal" Label="Total Cost" @bind-Value="_record.Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudToggleIconButton @bind-Toggled="_showAdvanced" Icon="@Icons.Material.Filled.ExpandMore" ToggledIcon="@Icons.Material.Filled.ExpandLess" />
+                            <MudText Typo="Typo.caption">Advanced Details</MudText>
+                        </MudItem>
+
+                        @if (_showAdvanced)
+                        {
+                            <MudItem xs="12">
+                                <MudTextField Label="Shop / Mechanic" @bind-Value="_record.ShopName" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField Label="Notes / Parts" @bind-Value="_record.Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" />
+                            </MudItem>
+                        }
+
+                        <MudItem xs="12" Class="d-flex justify-end gap-2 mt-2">
+                            <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="ToggleForm">Cancel</MudButton>
+                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save Record</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </EditForm>
+            </MudCardContent>
+        </MudCard>
+    </MudCollapse>
+
+    <MudExpansionPanels Class="mb-4">
+        <MudExpansionPanel Text="Filter Records" Icon="@Icons.Material.Filled.FilterList">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField T="string" Label="Search" @bind-Value="_searchText" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudNumericField T="decimal?" Label="Min $" @bind-Value="_minCost" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudNumericField T="decimal?" Label="Max $" @bind-Value="_maxCost" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearFilters" StartIcon="@Icons.Material.Filled.Clear">Clear Filters</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    @if (WrenchWise.MaintenanceRecords.Count == 0)
+    {
+        <MudPaper Class="pa-8 d-flex flex-column align-center justify-center opacity-40" Elevation="0" Outlined="true">
+            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Style="font-size: 3rem;" />
+            <MudText Typo="Typo.body1">No Service Records</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudStack Spacing="3">
+            @foreach (var record in FilteredMaintenanceRecords)
+            {
+                <MudCard Elevation="2" Class="rounded-lg">
+                    <MudCardHeader Class="pb-0">
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="Color.Warning" Variant="Variant.Text" Size="Size.Small"><MudIcon Icon="@Icons.Material.Filled.Build" /></MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.body1"><b>@record.ServiceType</b></MudText>
+                                <MudText Typo="Typo.subtitle1" Color="Color.Warning"><b>@record.Cost.ToString("C")</b></MudText>
+                            </div>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight">
+                                <MudMenuItem Icon="@Icons.Material.Filled.PhotoCamera" OnClick="() => AttachReceiptAsync(record.Id)">Attach Receipt</MudMenuItem>
+                                <MudDivider />
+                                <MudMenuItem Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => WrenchWise.DeleteMaintenanceRecordAsync(record.Id)">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent Class="pt-2">
+                        <div class="d-flex justify-space-between mb-2 opacity-70">
+                            <MudText Typo="Typo.caption">@record.ServiceDate.ToString("MMM d, yyyy")</MudText>
+                            <MudText Typo="Typo.caption">@record.Odometer mi</MudText>
+                        </div>
+                        
+                        @if (!string.IsNullOrWhiteSpace(record.Notes))
+                        {
+                            <MudAlert Severity="Severity.Normal" NoIcon="true" Dense="true" Class="mud-alert-outlined-default pa-2 mb-2">
+                                <MudText Typo="Typo.caption">@record.Notes</MudText>
+                            </MudAlert>
+                        }
+
+                        <div class="d-flex justify-space-between align-center mt-2">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Icon="@Icons.Material.Filled.DirectionsCar">
+                                @FindVehicle(record.VehicleId)
+                            </MudChip>
+                            @if (!string.IsNullOrWhiteSpace(record.ShopName))
+                            {
+                                <div class="d-flex align-center gap-1 opacity-60">
+                                    <MudIcon Icon="@Icons.Material.Filled.Store" Size="Size.Small" />
+                                    <MudText Typo="Typo.caption">@record.ShopName</MudText>
+                                </div>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudStack>
+    }
+}
+
+<style>
+    .border-l-4 { border-left-width: 4px !important; border-left-style: solid !important; }
+    .border-warning { border-left-color: var(--mud-palette-warning) !important; }
+</style>
+
+@code {
+    private MaintenanceRecord _record = new();
+    private DateTime? _serviceDate = DateTime.Today;
+    private string _searchText = string.Empty;
+    private decimal? _minCost;
+    private decimal? _maxCost;
+    private bool _showForm = false;
+    private bool _showAdvanced = false;
+
+    private readonly string[] _presets = 
+    { 
+        "Oil Change", "Tire Rotation", "Brake Pads", "Air Filter", 
+        "Cabin Filter", "Wipers", "Battery", "Fluid Flush", "Inspection", "Detailing" 
+    };
+
+    [SupplyParameterFromQuery]
+    public string? Preset { get; set; }
+
+    private List<MaintenanceRecord> FilteredMaintenanceRecords
+    {
+        get
+        {
+            var query = WrenchWise.MaintenanceRecords.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                query = query.Where(x => 
+                    (x.ServiceType?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (x.ShopName?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (x.Notes?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            if (_minCost.HasValue)
+            {
+                query = query.Where(x => x.Cost >= _minCost.Value);
+            }
+
+            if (_maxCost.HasValue)
+            {
+                query = query.Where(x => x.Cost <= _maxCost.Value);
+            }
+
+            return query.OrderByDescending(x => x.ServiceDate).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetRecord();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(Preset))
+        {
+            _showForm = true;
+            _record.ServiceType = Preset;
+            // Clear parameter so it doesn't get sticky on refresh
+            Nav.NavigateTo(Nav.Uri.Split('?')[0]);
+        }
+    }
+
+    private void ToggleForm()
+    {
+        _showForm = !_showForm;
+        if (!_showForm) ResetRecord();
+    }
+
+    private void OnPresetSelected(string val)
+    {
+        _record.ServiceType = val;
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = string.Empty;
+        _minCost = null;
+        _maxCost = null;
+    }
+
+    private async Task SaveRecordAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_record.ServiceType))
+        {
+            return;
+        }
+
+        _record.ServiceDate = DateOnly.FromDateTime(_serviceDate ?? DateTime.Today);
+        await WrenchWise.AddMaintenanceRecordAsync(_record);
+        Snackbar.Add($"Added {_record.ServiceType} for {FindVehicle(_record.VehicleId)}", Severity.Success);
+        ResetRecord();
+        _showForm = false;
+    }
+    
+    private void ResetRecord()
+    {
+        _record = new MaintenanceRecord
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
+                ? WrenchWise.ActiveVehicleId
+                : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+        };
+        _serviceDate = DateTime.Today;
+        ApplySuggestedOdometer();
+        _showAdvanced = false;
+    }
+
+    private void ApplySuggestedOdometer()
+    {
+        if (_record.VehicleId != Guid.Empty)
+        {
+            _record.Odometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);
+        }
+    }
+    
+    private async Task AttachReceiptAsync(Guid recordId)
+    {
+        await WrenchWise.AttachReceiptPhotoAsync(recordId);
+    }
+
+    private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

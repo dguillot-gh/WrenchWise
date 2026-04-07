@@ -1,0 +1,4 @@
+/* NavMenu scoped styles intentionally left empty.
+   All bottom-nav and more-sheet styles live in wwwroot/app.css
+   because Blazor CSS isolation does not reliably apply to
+   SVG children and deeply nested elements in Hybrid apps. */

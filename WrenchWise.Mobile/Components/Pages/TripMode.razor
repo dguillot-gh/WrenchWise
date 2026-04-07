@@ -1,0 +1,42 @@
+@page "/trip-mode"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Trip Mode</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Trip Mode</MudText>
+
+<MudPaper Class="pa-12 d-flex flex-column align-center justify-center text-center"
+          Style="min-height: 400px; background: linear-gradient(180deg, var(--mud-palette-surface) 0%, rgba(53, 194, 161, 0.05) 100%);"
+          Elevation="1">
+
+    <MudIcon Icon="@Icons.Material.Filled.Explore"
+             Color="Color.Primary"
+             Size="Size.Large"
+             Style="font-size: 80px;"
+             Class="mb-6 opacity-80" />
+
+    <MudText Typo="Typo.h4" GutterBottom="true" Style="font-weight: 700;">Coming Soon</MudText>
+
+    <MudText Typo="Typo.body1" Class="opacity-70" Style="max-width: 300px;">
+        We are currently building Trip Mode! Soon you'll be able to group fuel and service records into defined trips.
+    </MudText>
+
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               Class="mt-8 rounded-pill px-8"
+               Href="home">
+        Back to Dashboard
+    </MudButton>
+</MudPaper>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

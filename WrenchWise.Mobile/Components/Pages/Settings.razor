@@ -1,0 +1,67 @@
+@page "/settings"
+
+<PageTitle>Settings</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Settings</MudText>
+
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Storage" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">Server Configuration</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <MudStack Spacing="3">
+            <MudTextField Label="Server Base URL"
+                          Value="@("https://api.wrenchwise.example.com")"
+                          ReadOnly="true"
+                          Variant="Variant.Outlined"
+                          HelperText="Changes to the instance URL require re-authenticating."
+                          Margin="Margin.Dense" />
+
+            <MudTextField Label="API Key"
+                          Value="@("********************************")"
+                          InputType="InputType.Password"
+                          ReadOnly="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense" />
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       FullWidth="true"
+                       Class="rounded-pill mt-2">
+                Log Out / Disconnect
+            </MudButton>
+        </MudStack>
+    </MudCardContent>
+</MudCard>
+
+<MudCard Elevation="1" Class="mb-6">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Security" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">Security & Privacy</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <div class="d-flex justify-space-between align-center">
+             <div>
+                 <MudText Typo="Typo.body1">Require Biometrics</MudText>
+                 <MudText Typo="Typo.caption" Class="opacity-60">Use FaceID/Fingerprint to open app</MudText>
+             </div>
+             <MudSwitch T="bool" Color="Color.Primary" />
+        </div>
+    </MudCardContent>
+</MudCard>
+
+<MudStack AlignItems="AlignItems.Center" Spacing="1" Class="mt-12 mb-8 opacity-40">
+    <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Large" />
+    <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">WrenchWise Mobile</MudText>
+    <MudText Typo="Typo.caption">Version 1.0.0 (Build 4)</MudText>
+</MudStack>
+

@@ -1,30 +1,30 @@
 services:
   postgres:
     image: postgres:17
-    container_name: carcare-postgres
+    container_name: wrenchwise-postgres
     environment:
-      POSTGRES_DB: carcare
-      POSTGRES_USER: carcare
-      POSTGRES_PASSWORD: carcarepw
+      POSTGRES_DB: wrenchwise
+      POSTGRES_USER: wrenchwise
+      POSTGRES_PASSWORD: wrenchwisepw
     volumes:
-      - carcare_pgdata:/var/lib/postgresql/data
+      - wrenchwise_pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "15432:5432"
     restart: unless-stopped
 
   api:
     build:
       context: .
-      dockerfile: CarCareHybrid.Backend/Dockerfile
-    container_name: carcare-api
+      dockerfile: WrenchWise.Backend/Dockerfile
+    container_name: wrenchwise-api
     depends_on:
       - postgres
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__CarCareDb: Host=postgres;Port=5432;Database=carcare;Username=carcare;Password=carcarepw
+      ConnectionStrings__WrenchWiseDb: Host=postgres;Port=5432;Database=wrenchwise;Username=wrenchwise;Password=wrenchwisepw
     ports:
-      - "8080:8080"
+      - "18080:8080"
     restart: unless-stopped
 
 volumes:
-  carcare_pgdata:
+  wrenchwise_pgdata:

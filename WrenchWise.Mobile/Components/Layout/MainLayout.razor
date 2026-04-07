@@ -1,0 +1,80 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<style>
+    :root {
+        --mud-appbar-height: calc(max(env(safe-area-inset-top), 24px) + 40px) !important;
+    }
+    .safe-app-bar {
+        padding-top: max(env(safe-area-inset-top), 24px) !important;
+        height: var(--mud-appbar-height) !important;
+        min-height: unset !important;
+        align-items: center !important;
+    }
+</style>
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Surface" Class="px-4 safe-app-bar">
+        <MudText Typo="Typo.h6" Class="fw-bold" Color="Color.Primary">WrenchWise</MudText>
+
+        <MudSpacer />
+
+        <div class="d-flex align-center gap-2">
+            <MudChip T="string" Icon="@Icons.Material.Filled.Sync" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">
+                @WrenchWise.PendingSyncCount
+            </MudChip>
+            <MudText Typo="Typo.caption" Class="d-none d-sm-inline opacity-60">
+                @(WrenchWise.LastSyncUtc?.ToLocalTime().ToString("g") ?? "Never synced")
+            </MudText>
+        </div>
+    </MudAppBar>
+
+    <MudMainContent Class="pb-24">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="px-6 py-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+
+    <NavMenu />
+</MudLayout>
+
+@code {
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#35c2a1",
+            Secondary = "#1ea786",
+            Background = "#0b1117",
+            Surface = "#141c25",
+            AppbarBackground = "#141c25",
+            DrawerBackground = "#141c25",
+            TextPrimary = "#e6edf3",
+            TextSecondary = "#9eb0c4",
+            ActionDefault = "#9eb0c4",
+            ActionDisabled = "#1e2e3e",
+            Divider = "#1e2e3e"
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+    }
+
+    private async Task HandleActiveVehicleChanged(Guid selected)
+    {
+        await WrenchWise.SetActiveVehicleAsync(selected);
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

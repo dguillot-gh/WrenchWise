@@ -1,0 +1,196 @@
+@page "/insights"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Insights</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mt-4 mb-8">Insights</MudText>
+
+@if (WrenchWise.Vehicles.Count == 0 || !HasAnyData)
+{
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.BarChart" Size="Size.Large" Style="font-size: 5rem;" />
+        <MudText Typo="Typo.h6">Not Enough Data</MudText>
+        <MudText Typo="Typo.body2">Log more fuel and maintenance records to see insights.</MudText>
+    </MudStack>
+}
+else
+{
+    <MudGrid Spacing="4">
+        <!-- Main Stats Card -->
+        <MudItem xs="12">
+            <MudCard Elevation="4" Class="py-8 border-solid border-b-4 border-primary" Style="background: linear-gradient(180deg, var(--mud-palette-surface) 0%, rgba(53, 194, 161, 0.05) 100%);">
+                <MudStack AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.overline" Class="opacity-60">Total Lifetime Spending</MudText>
+                    <MudText Typo="Typo.h2" Color="Color.Primary" Class="fw-bold">@TotalCost.ToString("C0")</MudText>
+                </MudStack>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="6">
+            <MudPaper Elevation="1" Class="pa-5 d-flex flex-column align-center justify-center text-center">
+                <MudIcon Icon="@Icons.Material.Filled.LocalGasStation" Color="Color.Warning" Size="Size.Medium" Class="mb-2" />
+                <MudText Typo="Typo.caption" Class="opacity-60">Lifetime MPG</MudText>
+                <MudText Typo="Typo.h5">@TotalMpg.ToString("0.0")</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="6">
+            <MudPaper Elevation="1" Class="pa-5 d-flex flex-column align-center justify-center text-center">
+                <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Info" Size="Size.Medium" Class="mb-2" />
+                <MudText Typo="Typo.caption" Class="opacity-60">Cost / Mile</MudText>
+                <MudText Typo="Typo.h5">@CostPerMile.ToString("C2")</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Charts Section -->
+        <MudItem xs="12">
+            <MudExpansionPanels MultiExpansion="true" Elevation="1">
+                <MudExpansionPanel Text="Spending Breakdown" IsExpanded="true" Icon="@Icons.Material.Filled.PieChart">
+                    <MudChart T="double" ChartType="ChartType.Donut"
+                              Width="250px" Height="250px"
+                              Data="@chartData"
+                              Labels="@chartLabels"
+                              ChartOptions="@chartOptions" />
+
+                    <MudStack Class="mt-6 px-4 pb-4">
+                        <div class="d-flex justify-space-between py-1">
+                            <MudText Typo="Typo.body2" Color="Color.Warning">Fuel</MudText>
+                            <MudText Typo="Typo.body2">@TotalFuel.ToString("C")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between py-1">
+                            <MudText Typo="Typo.body2" Color="Color.Info">Maintenance</MudText>
+                            <MudText Typo="Typo.body2">@TotalMaint.ToString("C")</MudText>
+                        </div>
+                    </MudStack>
+                </MudExpansionPanel>
+
+                <MudExpansionPanel Text="Monthly Spending" Expanded="true" Icon="@Icons.Material.Filled.ShowChart">
+                    <MudChart T="double" ChartType="ChartType.Bar"
+                              ChartSeries="@_series"
+                              XAxisLabels="@_xAxisLabels"
+                              Width="100%" Height="250px"
+                              ChartOptions="@_barChartOptions" />
+                </MudExpansionPanel>
+
+                @if (activeVeh != null)
+                {
+                    <MudExpansionPanel Text="@($"{activeVeh.Nickname} Summary")" Icon="@Icons.Material.Filled.Info">
+                        <MudList T="string">
+                            <MudListItem Icon="@Icons.Material.Filled.Speed">
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body2">Recorded Mileage</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold">@TotalMilesTracked(activeVeh.Id).ToString("N0") mi</MudText>
+                                </div>
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.LocalGasStation">
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body2">Fill-ups</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold">@WrenchWise.FuelRecords.Count(x => x.VehicleId == activeVeh.Id)</MudText>
+                                </div>
+                            </MudListItem>
+                            <MudListItem Icon="@Icons.Material.Filled.Build">
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body2">Service Events</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold">@WrenchWise.MaintenanceRecords.Count(x => x.VehicleId == activeVeh.Id)</MudText>
+                                </div>
+                            </MudListItem>
+                        </MudList>
+                    </MudExpansionPanel>
+                }
+            </MudExpansionPanels>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private Vehicle? activeVeh => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == WrenchWise.ActiveVehicleId);
+
+    // Donut Chart Data
+    private double[] chartData => new double[] { (double)TotalFuel, (double)TotalMaint };
+    private string[] chartLabels = { "Fuel", "Maintenance" };
+    private ChartOptions chartOptions = new ChartOptions {
+        ChartPalette = new[] { "#EAB308", "#0EA5E9" }
+    };
+
+    // Bar Chart Data (Last 6 Months)
+    private List<ChartSeries<double>> _series = new();
+    private string[] _xAxisLabels = new string[6];
+    private ChartOptions _barChartOptions = new ChartOptions {
+        ChartPalette = new[] { "#35c2a1" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        PrepareBarChart();
+    }
+
+    private void PrepareBarChart()
+    {
+        var seriesData = new double[6];
+        var now = DateTime.Now;
+        
+        for (int i = 5; i >= 0; i--)
+        {
+            var month = now.AddMonths(-i);
+            _xAxisLabels[5 - i] = month.ToString("MMM");
+
+            var fuelTotal = WrenchWise.FuelRecords
+                .Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month)
+                .Sum(x => (double)x.TotalCost);
+                
+            var maintTotal = WrenchWise.MaintenanceRecords
+                .Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month)
+                .Sum(x => (double)x.Cost);
+
+            seriesData[5 - i] = fuelTotal + maintTotal;
+        }
+
+        _series = new List<ChartSeries<double>> { new ChartSeries<double> { Name = "Spending", Data = seriesData } };
+    }
+
+    private bool HasAnyData => WrenchWise.FuelRecords.Any() || WrenchWise.MaintenanceRecords.Any();
+    private decimal TotalFuel => WrenchWise.FuelRecords.Sum(x => x.TotalCost);
+    private decimal TotalMaint => WrenchWise.MaintenanceRecords.Sum(x => x.Cost);
+    private decimal TotalCost => TotalFuel + TotalMaint;
+
+    private double TotalMpg
+    {
+        get
+        {
+            var totalGals = WrenchWise.FuelRecords.Sum(x => (double)x.Gallons);
+            if (totalGals == 0) return 0;
+            double totalMilesTracked = WrenchWise.Vehicles.Sum(veh => (double)TotalMilesTracked(veh.Id));
+            return totalMilesTracked == 0 ? 0 : totalMilesTracked / totalGals;
+        }
+    }
+
+    private double CostPerMile
+    {
+        get
+        {
+            double totalMilesTracked = WrenchWise.Vehicles.Sum(veh => (double)TotalMilesTracked(veh.Id));
+            return totalMilesTracked == 0 ? 0 : (double)TotalCost / totalMilesTracked;
+        }
+    }
+
+    private int TotalMilesTracked(Guid vehicleId)
+    {
+         var allOdos = WrenchWise.FuelRecords.Where(x => x.VehicleId == vehicleId && x.Odometer > 0).Select(x => x.Odometer)
+            .Concat(WrenchWise.MaintenanceRecords.Where(x => x.VehicleId == vehicleId && x.Odometer > 0).Select(x => x.Odometer))
+            .ToList();
+
+         if (!allOdos.Any() || allOdos.Min() == allOdos.Max()) return 0;
+         return allOdos.Max() - allOdos.Min();
+    }
+
+    private void HandleChanged()
+    {
+        PrepareBarChart();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

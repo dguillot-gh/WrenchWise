@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+    <!-- Wrench Icon – foreground for app icon -->
+    <g transform="translate(228,228)">
+        <!-- Outer accent ring -->
+        <circle cx="0" cy="0" r="170" fill="none" stroke="#35c2a1" stroke-width="8" opacity="0.3"/>
+        <!-- Wrench shape -->
+        <g transform="rotate(-45)">
+            <!-- Handle -->
+            <rect x="-18" y="-120" width="36" height="160" rx="12" fill="#35c2a1"/>
+            <!-- Head (open-end wrench jaw) -->
+            <path d="M-40,40 L-18,40 L-18,100 Q-18,130 -48,140 L-48,120 Q-30,115 -30,100 L-30,40 Z" fill="#35c2a1"/>
+            <path d="M40,40 L18,40 L18,100 Q18,130 48,140 L48,120 Q30,115 30,100 L30,40 Z" fill="#35c2a1"/>
+            <!-- Jaw opening detail -->
+            <rect x="-10" y="80" width="20" height="50" rx="6" fill="#0f1922"/>
+            <!-- Head top bolt detail -->
+            <circle cx="0" cy="-100" r="14" fill="#28a88a"/>
+            <circle cx="0" cy="-100" r="6" fill="#0f1922"/>
+        </g>
+    </g>
+</svg>

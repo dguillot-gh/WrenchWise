@@ -1,0 +1,237 @@
+@page "/reminders"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+@inject ISnackbar Snackbar
+
+<PageTitle>Reminders</PageTitle>
+
+<div class="d-flex align-center justify-space-between mt-4 mb-8">
+    <MudText Typo="Typo.h5" Class="fw-bold">Service Reminders</MudText>
+    @if (WrenchWise.Vehicles.Count > 0)
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.Add"
+                       Color="Color.Primary"
+                       OnClick="ToggleForm"
+                       Variant="Variant.Filled"
+                       Size="Size.Small" />
+    }
+</div>
+
+@if (WrenchWise.Vehicles.Count == 0)
+{
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-60">
+        <MudIcon Icon="@Icons.Material.Filled.NotificationsOff" Size="Size.Large" />
+        <MudText Typo="Typo.h6">No Vehicles Found</MudText>
+        <MudText Typo="Typo.body2">Please add a vehicle first to set reminders.</MudText>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Href="vehicles">Go to Vehicles</MudButton>
+    </MudStack>
+}
+else
+{
+    <MudCollapse Expanded="_showForm">
+        <MudCard Elevation="2" Class="mb-6 border-l-4 border-solid" Style="border-left-color: var(--mud-palette-primary);">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1">New Reminder</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" Size="Size.Small" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid" Label="Vehicle" @bind-Value="_record.VehicleId" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                            @foreach (var vehicle in WrenchWise.Vehicles)
+                            {
+                                <MudSelectItem Value="@vehicle.Id">@vehicle.Nickname</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Title" @bind-Value="_record.Title" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="e.g. Oil Change, Registration" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Label="Due Date" @bind-Date="_dueDate" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField Label="Due Odometer" @bind-Value="_record.DueOdometer" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField Label="Notes" @bind-Value="_record.Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                    </MudItem>
+                    <MudItem xs="12" Class="d-flex justify-end">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRecordAsync" Class="rounded-pill px-6">Save Reminder</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudCollapse>
+
+    @if (WrenchWise.ServiceReminders.Count == 0)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-60">
+            <MudIcon Icon="@Icons.Material.Filled.Notifications" Size="Size.Large" />
+            <MudText Typo="Typo.h6">No Reminders</MudText>
+            <MudText Typo="Typo.body2">You can set reminders for maintenance or dates here.</MudText>
+        </MudStack>
+    }
+    else
+    {
+        <MudStack Spacing="4">
+            @{
+                var activeReminders = WrenchWise.ServiceReminders.Where(x => !x.IsCompleted).ToList();
+                var completedReminders = WrenchWise.ServiceReminders.Where(x => x.IsCompleted).OrderByDescending(x => x.DueDate).ToList();
+            }
+
+            @foreach (var record in activeReminders)
+            {
+                var vehicle = WrenchWise.Vehicles.FirstOrDefault(v => v.Id == record.VehicleId);
+                var isOverdue = false;
+                var milesLeftMsg = "";
+                var daysLeftMsg = "";
+
+                if (record.DueOdometer > 0 && vehicle != null)
+                {
+                    var diff = record.DueOdometer - vehicle.CurrentOdometer;
+                    isOverdue = isOverdue || (diff <= 0);
+                    milesLeftMsg = diff > 0 ? $"In {diff} miles" : "Overdue by mileage";
+                }
+
+                if (record.DueDate.HasValue)
+                {
+                    var dt = record.DueDate.Value.ToDateTime(TimeOnly.MinValue);
+                    var diffSpan = dt - DateTime.Today;
+                    isOverdue = isOverdue || (diffSpan.TotalDays < 0);
+                    daysLeftMsg = diffSpan.TotalDays >= 0 ? $"In {diffSpan.TotalDays} days" : "Overdue by date";
+                }
+
+                <MudCard Elevation="1" Class="@(isOverdue ? "border-l-4 border-solid border-error" : "")">
+                    <MudCardHeader Class="pb-2">
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="@(isOverdue ? Color.Error : Color.Secondary)" Variant="Variant.Filled" Style="height:45px; width:45px;">
+                                <MudIcon Icon="@Icons.Material.Filled.Notifications" />
+                            </MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Color="@(isOverdue ? Color.Error : Color.Default)">@record.Title</MudText>
+                            @if (!string.IsNullOrEmpty(milesLeftMsg) || !string.IsNullOrEmpty(daysLeftMsg))
+                            {
+                                <MudText Typo="Typo.caption" Class="opacity-60">
+                                    @milesLeftMsg @(string.IsNullOrEmpty(milesLeftMsg) || string.IsNullOrEmpty(daysLeftMsg) ? "" : "•") @daysLeftMsg
+                                </MudText>
+                            }
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                             <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
+                                <MudMenuItem OnClick="() => MarkComplete(record.Id)" IconColor="Color.Success" Icon="@Icons.Material.Filled.Check">Mark Complete</MudMenuItem>
+                                <MudMenuItem OnClick="() => WrenchWise.DeleteReminderAsync(record.Id)" IconColor="Color.Error" Icon="@Icons.Material.Filled.Delete">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent Class="pt-0 px-5 pb-5">
+                        @if (!string.IsNullOrWhiteSpace(record.Notes))
+                        {
+                            <MudAlert Severity="Severity.Normal" NoIcon="true" Dense="true" Class="mb-3 py-1 px-2 mud-alert-outlined-secondary" Variant="Variant.Outlined">
+                                <MudText Typo="Typo.body2">@record.Notes</MudText>
+                            </MudAlert>
+                        }
+                        
+                        <div class="d-flex justify-space-between align-center">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.DirectionsCar">
+                                @(vehicle?.Nickname ?? "Unknown")
+                            </MudChip>
+                            <div class="d-flex gap-2">
+                                @if (record.DueDate.HasValue) { <MudText Typo="Typo.caption" Class="opacity-50">@record.DueDate.Value.ToString()</MudText> }
+                                @if (record.DueOdometer > 0) { <MudText Typo="Typo.caption" Class="opacity-50">@record.DueOdometer.Value.ToString("N0") mi</MudText> }
+                            </div>
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+
+            @if (completedReminders.Any())
+            {
+                <MudText Typo="Typo.overline" Class="mt-4 mb-1 opacity-50 px-2">Completed</MudText>
+                @foreach (var record in completedReminders)
+                {
+                    <MudCard Elevation="0" Class="opacity-50 bg-transparent border border-dashed border-mud-divider">
+                        <MudCardHeader>
+                            <CardHeaderAvatar>
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.body2" Class="text-decoration-line-through">@record.Title</MudText>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => WrenchWise.DeleteReminderAsync(record.Id)" />
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                    </MudCard>
+                }
+            }
+        </MudStack>
+    }
+}
+
+@code {
+    private ServiceReminder _record = new();
+    private DateTime? _dueDate;
+    private bool _showForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetRecord();
+    }
+
+    private void ToggleForm()
+    {
+        _showForm = !_showForm;
+        if (!_showForm) ResetRecord();
+    }
+
+    private void ResetRecord()
+    {
+        _record = new ServiceReminder
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
+                ? WrenchWise.ActiveVehicleId
+                : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+        };
+        _dueDate = null;
+    }
+
+    private async Task SaveRecordAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_record.Title))
+        {
+            Snackbar.Add("Please enter a title for the reminder.", Severity.Warning);
+            return;
+        }
+
+        if (_dueDate.HasValue)
+        {
+            _record.DueDate = DateOnly.FromDateTime(_dueDate.Value);
+        }
+
+        await WrenchWise.AddReminderAsync(_record);
+        Snackbar.Add("Reminder created!", Severity.Success);
+        ResetRecord();
+        _showForm = false;
+    }
+
+    private async Task MarkComplete(Guid id)
+    {
+        var r = WrenchWise.ServiceReminders.FirstOrDefault(x => x.Id == id);
+        if (r != null)
+        {
+            await WrenchWise.ToggleReminderStatusAsync(r.Id);
+            Snackbar.Add("Reminder marked as complete.", Severity.Info);
+        }
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

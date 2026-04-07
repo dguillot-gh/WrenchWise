@@ -1,0 +1,83 @@
+@page "/quick-add"
+
+<PageTitle>Quick Add</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mt-4 mb-2">Quick Add</MudText>
+<MudText Typo="Typo.body2" Class="opacity-60 mb-8">Fast one-tap entry paths.</MudText>
+
+<MudGrid Spacing="4">
+    <MudItem xs="6">
+        <MudPaper Class="pa-6 d-flex flex-column align-center text-center cursor-pointer mud-ripple"
+                  Elevation="1"
+                  @onclick='() => Nav.NavigateTo("fuel")'>
+            <MudAvatar Color="Color.Info" Variant="Variant.Filled" Class="mb-4" Style="height:50px; width:50px;">
+                <MudIcon Icon="@Icons.Material.Filled.LocalGasStation" />
+            </MudAvatar>
+            <MudText Typo="Typo.subtitle2">Fuel Fill-up</MudText>
+            <MudText Typo="Typo.caption" Class="opacity-50 mt-1">Log gallons and cost</MudText>
+        </MudPaper>
+    </MudItem>
+    
+    <MudItem xs="6">
+        <MudPaper Class="pa-6 d-flex flex-column align-center text-center cursor-pointer mud-ripple"
+                  Elevation="1"
+                  @onclick='() => Nav.NavigateTo("maintenance?preset=Oil Change")'>
+            <MudAvatar Color="Color.Warning" Variant="Variant.Filled" Class="mb-4" Style="height:50px; width:50px;">
+                <MudIcon Icon="@Icons.Material.Filled.Build" />
+            </MudAvatar>
+            <MudText Typo="Typo.subtitle2">Oil Change</MudText>
+            <MudText Typo="Typo.caption" Class="opacity-50 mt-1">Pre-filled service</MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="6">
+        <MudPaper Class="pa-6 d-flex flex-column align-center text-center cursor-pointer mud-ripple"
+                  Elevation="1"
+                  @onclick='() => Nav.NavigateTo("maintenance?preset=Tire Rotation")'>
+            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="mb-4" Style="height:50px; width:50px;">
+                <MudIcon Icon="@Icons.Material.Filled.SettingsBackupRestore" />
+            </MudAvatar>
+            <MudText Typo="Typo.subtitle2">Tire Rotation</MudText>
+            <MudText Typo="Typo.caption" Class="opacity-50 mt-1">One tap preset</MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="6">
+        <MudPaper Class="pa-6 d-flex flex-column align-center text-center cursor-pointer mud-ripple"
+                  Elevation="1"
+                  @onclick='() => Nav.NavigateTo("reminders")'>
+            <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Class="mb-4" Style="height:50px; width:50px;">
+                <MudIcon Icon="@Icons.Material.Filled.Notifications" />
+            </MudAvatar>
+            <MudText Typo="Typo.subtitle2">Reminder</MudText>
+            <MudText Typo="Typo.caption" Class="opacity-50 mt-1">Set next service</MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="6">
+        <MudPaper Class="pa-6 d-flex flex-column align-center text-center cursor-pointer mud-ripple"
+                  Elevation="1"
+                  @onclick='() => Nav.NavigateTo("trip-mode")'>
+            <MudAvatar Color="Color.Tertiary" Variant="Variant.Filled" Class="mb-4" Style="height:50px; width:50px;">
+                <MudIcon Icon="@Icons.Material.Filled.Explore" />
+            </MudAvatar>
+            <MudText Typo="Typo.subtitle2">Trip Mode</MudText>
+            <MudText Typo="Typo.caption" Class="opacity-50 mt-1">Track road trips</MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="6">
+        <MudPaper Class="pa-6 d-flex flex-column align-center text-center cursor-pointer mud-ripple"
+                  Elevation="1"
+                  @onclick='() => Nav.NavigateTo("timeline")'>
+            <MudAvatar Color="Color.Default" Variant="Variant.Filled" Class="mb-4" Style="height:50px; width:50px;">
+                <MudIcon Icon="@Icons.Material.Filled.History" />
+            </MudAvatar>
+            <MudText Typo="Typo.subtitle2">Timeline</MudText>
+            <MudText Typo="Typo.caption" Class="opacity-50 mt-1">View all events</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@inject NavigationManager Nav
+

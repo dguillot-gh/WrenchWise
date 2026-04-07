@@ -1,0 +1,93 @@
+@inject NavigationManager Nav
+
+<MudPaper Elevation="4" Class="fixed-bottom-nav">
+    <MudNavMenu Margin="Margin.Dense" Rounded="true">
+        <div class="d-flex justify-space-around align-center py-3 px-2">
+            <MudIconButton Icon="@Icons.Material.Filled.Home" Color="@GetColor("")" OnClick="@(() => Nav.NavigateTo(""))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Build" Color="@GetColor("maintenance")" OnClick="@(() => Nav.NavigateTo("maintenance"))" />
+
+            <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Medium" OnClick="@(() => Nav.NavigateTo("quick-add"))" />
+
+            <MudIconButton Icon="@Icons.Material.Filled.LocalGasStation" Color="@GetColor("fuel")" OnClick="@(() => Nav.NavigateTo("fuel"))" />
+
+            <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.TopCenter" TransformOrigin="Origin.BottomCenter" Color="Color.Default">
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("vehicles"))">Vehicles</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("trip-mode"))">Trip Mode</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("timeline"))">Timeline</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("tires"))">Tires</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("insights"))">Insights</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("reminders"))">Reminders</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("sync"))">Sync</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Nav.NavigateTo("settings"))">Settings</MudMenuItem>
+            </MudMenu>
+        </div>
+    </MudNavMenu>
+</MudPaper>
+
+<style>
+    .fixed-bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background-color: var(--mud-palette-surface);
+        border-top: 1px solid var(--mud-palette-divider);
+        padding-bottom: calc(env(safe-area-inset-bottom, 12px) + 20px) !important;
+    }
+</style>
+
+@code {
+    private Color GetColor(string path)
+    {
+        var relative = Nav.ToBaseRelativePath(Nav.Uri);
+        return relative == path ? Color.Primary : Color.Default;
+    }
+}
+
+@code {
+    private bool _showMore;
+    private bool _sheetVisible;
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (_showMore)
+        {
+            _showMore = false;
+            _sheetVisible = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ToggleMore()
+    {
+        if (_showMore)
+        {
+            CloseMore();
+        }
+        else
+        {
+            _showMore = true;
+            StateHasChanged();
+            await Task.Delay(20);
+            _sheetVisible = true;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseMore()
+    {
+        _sheetVisible = false;
+        _showMore = false;
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

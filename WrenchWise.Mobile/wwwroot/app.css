@@ -1,0 +1,72 @@
+/* ================================================================
+   WrenchWise – Global Styles (MudBlazor Compatible)
+   ================================================================ */
+
+:root {
+    --mud-palette-primary: #35c2a1;
+}
+
+html, body {
+    font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: #0b1117;
+}
+
+#app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Custom Component Overrides ────────────────────────── */
+
+/* Ensure content doesn't get hidden under the bottom nav */
+.mud-main-content {
+    padding-bottom: 80px !important;
+    overflow-y: auto;
+    height: 100vh;
+}
+
+/* Push the MudAppBar down safely below the Android notch/status bar */
+.custom-safe-appbar {
+    padding-top: calc(env(safe-area-inset-top, 24px) + 20px) !important;
+    padding-bottom: 8px !important;
+    height: auto !important;
+    min-height: 80px !important;
+    display: flex;
+    align-items: flex-end !important;
+}
+
+/* Fix for MudAlert outlined colors in dark mode */
+.mud-alert-outlined-secondary {
+    border-color: rgba(234, 179, 8, 0.3) !important;
+    color: rgba(234, 179, 8, 0.9) !important;
+}
+
+/* Utility for clickable cards */
+.cursor-pointer {
+    cursor: pointer;
+    transition: transform 0.1s ease-in-out;
+}
+
+.cursor-pointer:active {
+    transform: scale(0.98);
+}
+
+/* Blazor Error UI */
+#blazor-error-ui {
+    background: #3b1926;
+    color: #ffd4dd;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: 0.6rem;
+    position: fixed;
+    width: 100%;
+    z-index: 2000;
+}
+

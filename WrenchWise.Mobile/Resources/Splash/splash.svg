@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+    <!-- WrenchWise Splash Screen -->
+    <g transform="translate(228,185)">
+        <!-- Wrench icon (smaller for splash) -->
+        <g transform="rotate(-45)">
+            <rect x="-12" y="-78" width="24" height="104" rx="8" fill="#35c2a1"/>
+            <path d="M-26,26 L-12,26 L-12,65 Q-12,85 -32,92 L-32,78 Q-20,74 -20,65 L-20,26 Z" fill="#35c2a1"/>
+            <path d="M26,26 L12,26 L12,65 Q12,85 32,92 L32,78 Q20,74 20,65 L20,26 Z" fill="#35c2a1"/>
+            <rect x="-6.5" y="52" width="13" height="32" rx="4" fill="#0f1922"/>
+            <circle cx="0" cy="-65" r="9" fill="#28a88a"/>
+            <circle cx="0" cy="-65" r="4" fill="#0f1922"/>
+        </g>
+    </g>
+    <!-- "WrenchWise" text -->
+    <text x="228" y="310" text-anchor="middle" font-family="Segoe UI, Tahoma, sans-serif" font-weight="700" font-size="40" fill="#e6edf3" letter-spacing="2">
+        WrenchWise
+    </text>
+    <text x="228" y="340" text-anchor="middle" font-family="Segoe UI, Tahoma, sans-serif" font-weight="400" font-size="16" fill="#6b8299" letter-spacing="4">
+        VEHICLE MAINTENANCE
+    </text>
+</svg>
