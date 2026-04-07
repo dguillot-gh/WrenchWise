@@ -96,6 +96,26 @@ public class WrenchWiseService
         await PersistAndNotifyAsync();
     }
 
+    public async Task<bool> CheckConnectionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_offline.ApiBaseUrl))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var endpoint = $"{_offline.ApiBaseUrl.TrimEnd('/')}/api/health";
+            var response = await client.GetAsync(endpoint);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async Task SyncNowAsync()
     {
         if (string.IsNullOrWhiteSpace(_offline.ApiBaseUrl))
@@ -210,7 +230,7 @@ public class WrenchWiseService
     public async Task UpdateVehicleOdometerAsync(Guid vehicleId, int odometer)
     {
         var vehicle = _offline.Store.Vehicles.FirstOrDefault(v => v.Id == vehicleId);
-        if (vehicle is null)
+        if (vehicle is null || vehicle.CurrentOdometer >= odometer)
         {
             return;
         }
@@ -256,6 +276,7 @@ public class WrenchWiseService
 
         existing.FillDate = record.FillDate;
         existing.Odometer = record.Odometer;
+        existing.TripMiles = record.TripMiles;
         existing.Gallons = record.Gallons;
         existing.TotalCost = record.TotalCost;
         existing.FullTank = record.FullTank;
@@ -615,6 +636,45 @@ public class WrenchWiseService
         foreach (var tire in _offline.Store.TireRecords.OrderByDescending(x => x.InstalledDate))
         {
             sb.AppendLine($"Tire,{FindVehicleName(tire.VehicleId)},{tire.InstalledDate:yyyy-MM-dd},{tire.InstalledOdometer},{tire.PurchaseCost},\"{Escape(tire.BrandModel)}\"");
+        }
+
+        await File.WriteAllTextAsync(filePath, sb.ToString());
+        return filePath;
+    }
+
+    public async Task<string> GenerateVehicleHistoryCsvAsync(Guid vehicleId)
+    {
+        var vehicle = _offline.Store.Vehicles.FirstOrDefault(v => v.Id == vehicleId);
+        if (vehicle is null) return string.Empty;
+
+        var exportDir = Path.Combine(FileSystem.CacheDirectory, "exports");
+        Directory.CreateDirectory(exportDir);
+
+        var filePath = Path.Combine(exportDir, $"{vehicle.Nickname.Replace(" ", "_")}-History-{DateTime.UtcNow:yyyyMMdd}.csv");
+        var sb = new StringBuilder();
+
+        sb.AppendLine("Date,Type,Odometer,Amount,Details");
+        
+        var logs = new List<(DateOnly Date, string Type, int Odometer, decimal Cost, string Notes)>();
+
+        foreach (var service in _offline.Store.MaintenanceRecords.Where(x => x.VehicleId == vehicleId))
+        {
+            logs.Add((service.ServiceDate, "Service", service.Odometer, service.Cost, service.ServiceType + (string.IsNullOrWhiteSpace(service.ShopName) ? "" : $" @ {service.ShopName}")));
+        }
+
+        foreach (var tire in _offline.Store.TireRecords.Where(x => x.VehicleId == vehicleId))
+        {
+            logs.Add((tire.InstalledDate, "Tires", tire.InstalledOdometer, tire.PurchaseCost, tire.BrandModel));
+        }
+
+        foreach (var fuel in _offline.Store.FuelRecords.Where(x => x.VehicleId == vehicleId))
+        {
+            logs.Add((fuel.FillDate, "Fuel", fuel.Odometer, fuel.TotalCost, $"{fuel.Gallons} gal"));
+        }
+
+        foreach (var log in logs.OrderByDescending(x => x.Date).ThenByDescending(x => x.Odometer))
+        {
+            sb.AppendLine($"{log.Date:yyyy-MM-dd},{log.Type},{log.Odometer},{log.Cost},\"{Escape(log.Notes)}\"");
         }
 
         await File.WriteAllTextAsync(filePath, sb.ToString());

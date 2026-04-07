@@ -1,5 +1,6 @@
 @page "/settings"
 @inject WrenchWiseService WrenchWise
+@inject ISnackbar Snackbar
 
 <PageTitle>Settings</PageTitle>
 
@@ -17,12 +18,56 @@
     <MudCardContent Class="pt-0">
         <MudStack Spacing="3">
             <MudTextField Label="Server Base URL"
-                          Value="@WrenchWise.ApiBaseUrl"
-                          ValueChanged="@(async (string url) => await WrenchWise.SetApiBaseUrlAsync(url))"
+                          @bind-Value="_url"
                           T="string"
                           Variant="Variant.Outlined"
                           HelperText="Enter the URL (e.g. http://192.168.1.50:18080) of your backend instance."
                           Margin="Margin.Dense" />
+            
+            <div class="d-flex align-center mt-1">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="SaveAndTestAsync" Class="mr-4">
+                    Save & Test
+                </MudButton>
+                
+                @if (_isTesting)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <MudText Typo="Typo.body2">Checking...</MudText>
+                }
+                else if (_connectionSuccess.HasValue)
+                {
+                    if (_connectionSuccess.Value)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Class="mr-2" />
+                        <MudText Typo="Typo.body2" Color="Color.Success">Connected</MudText>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Class="mr-2" />
+                        <MudText Typo="Typo.body2" Color="Color.Error">Connection Failed</MudText>
+                    }
+                }
+            </div>
+        </MudStack>
+    </MudCardContent>
+</MudCard>
+
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Backup" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">Data Backup & Restore</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <MudText Typo="Typo.body2" Class="mb-4 opacity-70">
+            Use CSV to migrate from other apps. A Full JSON Backup saves an exact digital copy of your entire WrenchWise offline database.
+        </MudText>
+        <MudStack Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile" OnClick="ImportCsvAsync">Import CSV Logs</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportJsonAsync">Export Complete JSON Backup</MudButton>
         </MudStack>
     </MudCardContent>
 </MudCard>
@@ -30,12 +75,52 @@
 <MudStack AlignItems="AlignItems.Center" Spacing="1" Class="mt-12 mb-8 opacity-40">
     <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Large" />
     <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">WrenchWise Mobile</MudText>
-    <MudText Typo="Typo.caption">Version 1.0.0 (Production)</MudText>
+    <MudText Typo="Typo.caption">Version @Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString (Build @Microsoft.Maui.ApplicationModel.AppInfo.Current.BuildString)</MudText>
 </MudStack>
 
 @code {
+    private string _url = "";
+    private bool _isTesting;
+    private bool? _connectionSuccess;
+
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
+        _url = WrenchWise.ApiBaseUrl;
+    }
+
+    private async Task SaveAndTestAsync()
+    {
+        _isTesting = true;
+        _connectionSuccess = null;
+        StateHasChanged();
+
+        await WrenchWise.SetApiBaseUrlAsync(_url);
+        _connectionSuccess = await WrenchWise.CheckConnectionAsync();
+
+        _isTesting = false;
+        StateHasChanged();
+    }
+
+    private async Task ImportCsvAsync()
+    {
+        var result = await WrenchWise.ImportFromCsvAsync();
+        if (result.Success)
+            Snackbar.Add(result.Message, Severity.Success);
+        else
+            Snackbar.Add(result.Message, Severity.Error);
+    }
+
+    private async Task ExportJsonAsync()
+    {
+        var path = await WrenchWise.ExportJsonBackupAsync();
+        if (!string.IsNullOrEmpty(path))
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
+            {
+                Title = "WrenchWise Full Backup",
+                File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(path)
+            });
+        }
     }
 }

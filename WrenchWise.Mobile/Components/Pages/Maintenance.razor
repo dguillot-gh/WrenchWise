@@ -149,7 +149,7 @@ else
                     <MudCardContent Class="pt-2">
                         <div class="d-flex justify-space-between mb-2 opacity-70">
                             <MudText Typo="Typo.caption">@record.ServiceDate.ToString("MMM d, yyyy")</MudText>
-                            <MudText Typo="Typo.caption">@record.Odometer mi</MudText>
+                            <MudText Typo="Typo.caption">@record.Odometer.ToString("N0") mi</MudText>
                         </div>
                         
                         @if (!string.IsNullOrWhiteSpace(record.Notes))

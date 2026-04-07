@@ -41,7 +41,7 @@ else
             <MudCardContent>
                 <MudGrid Spacing="2">
                     <MudItem xs="12" sm="6">
-                        <MudSelect T="Guid" Label="Vehicle" @bind-Value="_record.VehicleId" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                        <MudSelect T="Guid" Label="Vehicle" @bind-Value="_record.VehicleId" @bind-Value:after="ApplySuggestedOdometer" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
                             @foreach (var vehicle in WrenchWise.Vehicles)
                             {
                                 <MudSelectItem Value="@vehicle.Id">@vehicle.Nickname</MudSelectItem>
@@ -155,6 +155,14 @@ else
         };
         _installDate = DateTime.Today;
 
+        if (_record.VehicleId != Guid.Empty)
+        {
+            _record.InstalledOdometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);
+        }
+    }
+
+    private void ApplySuggestedOdometer()
+    {
         if (_record.VehicleId != Guid.Empty)
         {
             _record.InstalledOdometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);

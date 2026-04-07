@@ -9,7 +9,7 @@
     <MudText Typo="Typo.h4">Fuel Logs</MudText>
     @if (WrenchWise.Vehicles.Count > 0)
     {
-        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="ToggleForm" Label="Add New" />
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddNewRecord" Label="Add New" />
     }
 </div>
 
@@ -31,7 +31,7 @@ else
                     <MudAvatar Color="Color.Info" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Filled.LocalGasStation" /></MudAvatar>
                 </CardHeaderAvatar>
                 <CardHeaderContent>
-                    <MudText Typo="Typo.h6">New Fuel Entry</MudText>
+                    <MudText Typo="Typo.h6">@(_isEditing ? "Edit Fuel Entry" : "New Fuel Entry")</MudText>
                 </CardHeaderContent>
                 <CardHeaderActions>
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" />
@@ -52,17 +52,17 @@ else
                         <MudItem xs="12" sm="6">
                             <MudDatePicker Label="Date" @bind-Date="_fillDate" Variant="Variant.Outlined" Margin="Margin.Dense" />
                         </MudItem>
-                        <MudItem xs="4" sm="3">
-                            <MudNumericField T="int" Label="Trip Miles" @bind-Value="_record.Odometer" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudItem xs="6" sm="4">
+                            <MudNumericField T="double" Label="Trip Miles" @bind-Value="_record.TripMiles" Variant="Variant.Outlined" Margin="Margin.Dense" Format="F1" />
                         </MudItem>
-                        <MudItem xs="4" sm="3">
+                        <MudItem xs="6" sm="4">
                             <MudNumericField T="decimal" Label="Gallons" @bind-Value="_record.Gallons" Variant="Variant.Outlined" Margin="Margin.Dense" Format="F2" />
                         </MudItem>
-                        <MudItem xs="4" sm="3">
+                        <MudItem xs="12" sm="4">
                             <MudNumericField T="decimal" Label="Total Cost" @bind-Value="_record.TotalCost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
                         </MudItem>
-                        <MudItem xs="12" sm="3" Class="d-flex align-center">
-                            <MudCheckBox T="bool" @bind-Value="_record.FullTank" Label="Full Tank" Color="Color.Primary" />
+                        <MudItem xs="12" Class="d-flex align-center mt-n1 mb-n2">
+                            <MudCheckBox T="bool" @bind-Value="_record.FullTank" Label="Full Tank (Used for MPG calc)" Color="Color.Primary" />
                         </MudItem>
 
                         <MudItem xs="12" Class="d-flex justify-end gap-2 mt-2">
@@ -112,6 +112,7 @@ else
                         </CardHeaderContent>
                         <CardHeaderActions>
                             <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight">
+                                <MudMenuItem Icon="@Icons.Material.Filled.Edit" OnClick="() => EditFuelRecord(record)">Edit</MudMenuItem>
                                 <MudMenuItem Icon="@Icons.Material.Filled.PhotoCamera" OnClick="() => AttachReceiptAsync(record.Id)">Attach Receipt</MudMenuItem>
                                 <MudMenuItem Icon="@Icons.Material.Filled.Description" OnClick="() => EditOcr(record)">Receipt OCR</MudMenuItem>
                                 <MudDivider />
@@ -126,11 +127,22 @@ else
                                 <MudText Typo="Typo.body2">@record.Gallons gal</MudText>
                             </div>
 
-                            @if (record.TripMiles > 0 && record.Gallons > 0 && record.FullTank)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AutoGraph">
-                                    @((record.TripMiles / (double)record.Gallons).ToString("0.0")) MPG
-                                </MudChip>
+                            @{
+                                var previous = WrenchWise.FuelRecords
+                                    .Where(x => x.VehicleId == record.VehicleId && x.FullTank && x.Odometer < record.Odometer)
+                                    .OrderByDescending(x => x.Odometer)
+                                    .FirstOrDefault();
+
+                                double milesDriven = record.TripMiles > 0 
+                                    ? record.TripMiles 
+                                    : (previous != null ? (record.Odometer - previous.Odometer) : 0);
+
+                                if (milesDriven > 0 && record.Gallons > 0 && record.FullTank)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AutoGraph">
+                                        @((milesDriven / (double)record.Gallons).ToString("0.0")) MPG
+                                    </MudChip>
+                                }
                             }
                         </div>
 
@@ -138,9 +150,9 @@ else
                             <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Icon="@Icons.Material.Filled.DirectionsCar">
                                 @FindVehicle(record.VehicleId)
                             </MudChip>
-                            @if (record.TripMiles > 0)
+                            @if (milesDriven > 0)
                             {
-                                <MudText Typo="Typo.caption" Class="opacity-60">@record.TripMiles miles traveled</MudText>
+                                <MudText Typo="Typo.caption" Class="opacity-60">@milesDriven.ToString("N1") miles traveled</MudText>
                             }
                         </div>
                     </MudCardContent>
@@ -161,7 +173,7 @@ else
     private Guid _ocrFuelId;
     private string _ocrText = string.Empty;
     private bool _showForm = false;
-    private Guid? _activeMenuId;
+    private bool _isEditing = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -170,10 +182,21 @@ else
         ResetRecord();
     }
 
+    private void AddNewRecord()
+    {
+        _isEditing = false;
+        ResetRecord();
+        _showForm = true;
+    }
+
     private void ToggleForm()
     {
         _showForm = !_showForm;
-        if (!_showForm) ResetRecord();
+        if (!_showForm) 
+        {
+            ResetRecord();
+            _isEditing = false;
+        }
     }
 
     private async Task SaveFuelAsync()
@@ -184,15 +207,67 @@ else
         }
 
         _record.FillDate = DateOnly.FromDateTime(_fillDate ?? DateTime.Today);
-        await WrenchWise.AddFuelRecordAsync(_record);
-        Snackbar.Add($"Fuel entry saved for {FindVehicle(_record.VehicleId)}", Severity.Success);
+
+        // Auto-calculate the global vehicle Odometer from Trip Miles so metrics don't break
+        if (!_isEditing)
+        {
+            _record.Odometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId) + (int)Math.Round(_record.TripMiles);
+        }
+        else
+        {
+            // If editing, they might have changed trip distance. Recalculate roughly based on an old base or leave it.
+            // But since they can't see/edit odometer anymore, recalculating it cleanly prevents weird jumps.
+            var existingRecord = WrenchWise.FuelRecords.FirstOrDefault(x => x.Id == _record.Id);
+            if (existingRecord != null)
+            {
+                var baseOdo = existingRecord.Odometer - (int)Math.Round(existingRecord.TripMiles);
+                _record.Odometer = baseOdo + (int)Math.Round(_record.TripMiles);
+            }
+        }
+
+        if (_isEditing)
+        {
+            await WrenchWise.UpdateFuelRecordAsync(_record);
+            Snackbar.Add($"Fuel entry updated for {FindVehicle(_record.VehicleId)}", Severity.Success);
+        }
+        else
+        {
+            await WrenchWise.AddFuelRecordAsync(_record);
+            Snackbar.Add($"Fuel entry saved for {FindVehicle(_record.VehicleId)}", Severity.Success);
+        }
+
         ResetRecord();
         _showForm = false;
+        _isEditing = false;
     }
 
     private async Task AttachReceiptAsync(Guid fuelId)
     {
         await WrenchWise.AttachReceiptPhotoAsync(fuelId);
+    }
+
+    private void EditFuelRecord(FuelRecord record)
+    {
+        _record = new FuelRecord
+        {
+            Id = record.Id,
+            VehicleId = record.VehicleId,
+            FillDate = record.FillDate,
+            Odometer = record.Odometer,
+            TripMiles = record.TripMiles,
+            Gallons = record.Gallons,
+            TotalCost = record.TotalCost,
+            FullTank = record.FullTank,
+            Station = record.Station,
+            FuelGrade = record.FuelGrade,
+            EthanolPercent = record.EthanolPercent,
+            AdditiveNotes = record.AdditiveNotes,
+            ReceiptImagePath = record.ReceiptImagePath,
+            ReceiptOcrText = record.ReceiptOcrText
+        };
+        _fillDate = record.FillDate.ToDateTime(TimeOnly.MinValue);
+        _isEditing = true;
+        _showForm = true;
     }
 
     private void EditOcr(FuelRecord record)

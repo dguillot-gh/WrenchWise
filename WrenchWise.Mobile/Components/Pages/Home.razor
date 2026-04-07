@@ -8,6 +8,22 @@
 <MudText Typo="Typo.h5" GutterBottom="true" Class="mt-2 mb-1 fw-bold">My Garage</MudText>
 <MudText Typo="Typo.body2" Class="opacity-60 mb-5">Your vehicles at a glance.</MudText>
 
+@if (WrenchWise.ActiveTrip != null)
+{
+    var tripSpan = (DateOnly.FromDateTime(DateTime.Today).DayNumber - WrenchWise.ActiveTrip.StartDate.DayNumber) + 1;
+    <MudAlert Severity="Severity.Normal" Variant="Variant.Filled" Class="mb-5 rounded-lg" Style="background-color: var(--mud-palette-primary-dark);">
+        <div class="d-flex align-center justify-space-between w-100">
+            <div class="d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.Map" Color="Color.Surface" />
+                <div>
+                    <MudText Typo="Typo.subtitle2"><b>Active Trip: @WrenchWise.ActiveTrip.TripName</b></MudText>
+                    <MudText Typo="Typo.caption" Class="opacity-70">Started at @WrenchWise.ActiveTrip.StartOdometer.ToString("N0") mi • Day @tripSpan</MudText>
+                </div>
+            </div>
+        </div>
+    </MudAlert>
+}
+
 @if (!_ready)
 {
     <MudGrid Spacing="2">
@@ -58,7 +74,7 @@ else
         </MudItem>
     </MudGrid>
 
-    <MudText Typo="Typo.subtitle1" Class="fw-bold mb-3">Active Vehicles</MudText>
+    <MudText Typo="Typo.subtitle1" Class="fw-bold mb-3">Your Vehicles</MudText>
 
     @foreach (var vehicle in WrenchWise.Vehicles.OrderByDescending(x => x.UpdatedUtc))
     {
@@ -78,7 +94,7 @@ else
                         <MudIcon Icon="@Icons.Material.Filled.Speed" Size="Size.Small" />
                         <MudText Typo="Typo.body2">Odometer</MudText>
                     </div>
-                    <MudText Typo="Typo.body2"><b>@vehicle.CurrentOdometer miles</b></MudText>
+                    <MudText Typo="Typo.body2"><b>@vehicle.CurrentOdometer.ToString("N0") miles</b></MudText>
                 </div>
                 <div class="d-flex justify-space-between py-2 border-b-1 mud-border-lines-default opacity-80">
                     <div class="d-flex align-center gap-2">
@@ -94,9 +110,21 @@ else
                     </div>
                     <MudText Typo="Typo.body2"><b>@WrenchWise.GetAverageMpg(vehicle.Id)</b></MudText>
                 </div>
+
+                @{
+                    var dueReminders = WrenchWise.ServiceReminders.Where(r => r.VehicleId == vehicle.Id && WrenchWise.IsReminderDue(r)).ToList();
+                    if (dueReminders.Any())
+                    {
+                        <div class="d-flex align-center gap-2 py-2 mt-1 px-3 rounded-lg mud-palette-error opacity-80" style="background-color: var(--mud-palette-error-hover);">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Small" />
+                            <MudText Typo="Typo.caption" Color="Color.Error"><b>@dueReminders.Count Service Due:</b> @string.Join(", ", dueReminders.Select(r => r.Title))</MudText>
+                        </div>
+                    }
+                }
             </MudCardContent>
-            <MudCardActions Class="px-4 pb-2">
+            <MudCardActions Class="px-4 pb-2 gap-2">
                 <MudButton OnClick="@(() => GoToDetails(vehicle.Id))" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Launch" Class="rounded-pill mt-1">Details</MudButton>
+                <MudButton OnClick="@(() => ExportVehicleHistoryAsync(vehicle.Id))" Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small" StartIcon="@Icons.Material.Filled.Download" Class="rounded-pill mt-1">Export</MudButton>
             </MudCardActions>
         </MudCard>
     }
@@ -130,6 +158,19 @@ else
     {
         await WrenchWise.SetActiveVehicleAsync(vehicleId);
         Nav.NavigateTo("/timeline");
+    }
+
+    private async Task ExportVehicleHistoryAsync(Guid vehicleId)
+    {
+        var filePath = await WrenchWise.GenerateVehicleHistoryCsvAsync(vehicleId);
+        if (!string.IsNullOrEmpty(filePath))
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
+            {
+                Title = "Vehicle History",
+                File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(filePath)
+            });
+        }
     }
 
     public void Dispose()
