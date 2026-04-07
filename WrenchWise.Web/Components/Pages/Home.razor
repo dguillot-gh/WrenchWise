@@ -1,7 +1,227 @@
-﻿@page "/"
+@page "/"
+@inject WebDataService Data
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Fleet Dashboard — WrenchWise</PageTitle>
 
-<h1>Hello, world!</h1>
+@if (!Data.IsLoaded)
+{
+    <MudGrid Spacing="3" Class="mb-6">
+        @for (int i = 0; i < 4; i++)
+        {
+            <MudItem xs="6" md="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="90px" Class="rounded-xl" />
+            </MudItem>
+        }
+    </MudGrid>
+    <MudGrid Spacing="3">
+        @for (int i = 0; i < 3; i++)
+        {
+            <MudItem xs="12" md="4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" Class="rounded-xl" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    var store = Data.Store!;
+    var dueReminders = store.ServiceReminders.Where(r => Data.IsReminderDue(r)).ToList();
+    var overdueReminders = store.ServiceReminders.Where(r => Data.IsReminderOverdue(r)).ToList();
 
-Welcome to your new app.
+    @if (overdueReminders.Any())
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-5 rounded-xl" Icon="@Icons.Material.Filled.Warning">
+            <b>@overdueReminders.Count service(s) overdue</b> — @string.Join(", ", overdueReminders.Select(r => r.Title))
+        </MudAlert>
+    }
+    else if (dueReminders.Any())
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-5 rounded-xl" Icon="@Icons.Material.Filled.NotificationsActive">
+            <b>@dueReminders.Count service reminder(s) due</b> — @string.Join(", ", dueReminders.Select(r => r.Title))
+        </MudAlert>
+    }
+
+    @* ── Stat Bar ─────────────────────────────────────────────────────── *@
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center stat-card border-primary">
+                <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Color="Color.Primary" Size="Size.Medium" Class="mb-1" />
+                <MudText Typo="Typo.h5" Color="Color.Primary" Class="fw-bold">@store.Vehicles.Count</MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 text-uppercase fw-bold">Vehicles</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center stat-card border-error">
+                <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Error" Size="Size.Medium" Class="mb-1" />
+                <MudText Typo="Typo.h5" Color="Color.Error" Class="fw-bold">@Data.GetAllTimeSpent().ToString("C0")</MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 text-uppercase fw-bold">Total Spent</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center stat-card border-warning">
+                <MudIcon Icon="@Icons.Material.Filled.Build" Color="Color.Warning" Size="Size.Medium" Class="mb-1" />
+                <MudText Typo="Typo.h5" Color="Color.Warning" Class="fw-bold">@store.MaintenanceRecords.Count</MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 text-uppercase fw-bold">Services</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center stat-card border-info">
+                <MudIcon Icon="@Icons.Material.Filled.LocalGasStation" Color="Color.Info" Size="Size.Medium" Class="mb-1" />
+                <MudText Typo="Typo.h5" Color="Color.Info" Class="fw-bold">@store.FuelRecords.Count</MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 text-uppercase fw-bold">Fill-ups</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* ── Vehicle Cards ────────────────────────────────────────────────── *@
+    <MudText Typo="Typo.h6" Class="fw-bold mb-3">Your Fleet</MudText>
+    <MudGrid Spacing="3" Class="mb-6">
+        @foreach (var vehicle in store.Vehicles.OrderByDescending(x => x.UpdatedUtc))
+        {
+            var vehicleDue = store.ServiceReminders.Where(r => r.VehicleId == vehicle.Id && Data.IsReminderDue(r)).ToList();
+            <MudItem xs="12" md="6" lg="4">
+                <MudCard Elevation="3" Class="rounded-xl h-100" Style="border: 1px solid var(--mud-palette-lines-default);">
+                    <MudCardHeader>
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large">@vehicle.Nickname[0]</MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@vehicle.Nickname</MudText>
+                            <MudText Typo="Typo.body2" Class="opacity-60">@vehicle.Year @vehicle.Make @vehicle.Model</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            @if (vehicleDue.Any())
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">@vehicleDue.Count Due</MudChip>
+                            }
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudDivider />
+                    <MudCardContent Class="px-4 pb-2 pt-2">
+                        <div class="d-flex justify-space-between py-2">
+                            <div class="d-flex align-center gap-2 opacity-80">
+                                <MudIcon Icon="@Icons.Material.Filled.Speed" Size="Size.Small" />
+                                <MudText Typo="Typo.body2">Odometer</MudText>
+                            </div>
+                            <MudText Typo="Typo.body2" Class="fw-bold">@vehicle.CurrentOdometer.ToString("N0") mi</MudText>
+                        </div>
+                        <MudDivider />
+                        <div class="d-flex justify-space-between py-2">
+                            <div class="d-flex align-center gap-2 opacity-80">
+                                <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Size="Size.Small" />
+                                <MudText Typo="Typo.body2">Total Spending</MudText>
+                            </div>
+                            <MudText Typo="Typo.body2" Color="Color.Success" Class="fw-bold">@Data.GetTotalSpent(vehicle.Id).ToString("C")</MudText>
+                        </div>
+                        <MudDivider />
+                        <div class="d-flex justify-space-between py-2">
+                            <div class="d-flex align-center gap-2 opacity-80">
+                                <MudIcon Icon="@Icons.Material.Filled.ShowChart" Size="Size.Small" />
+                                <MudText Typo="Typo.body2">Avg MPG</MudText>
+                            </div>
+                            <MudText Typo="Typo.body2" Class="fw-bold">@Data.GetAverageMpg(vehicle.Id)</MudText>
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+
+    @* ── Charts ───────────────────────────────────────────────────────── *@
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="5">
+            <MudCard Elevation="3" Class="rounded-xl">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Cost Distribution</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="d-flex justify-center">
+                    <MudChart T="double" ChartType="ChartType.Donut"
+                              ChartSeries="@_donutSeries" ChartLabels="@_donutLabels"
+                              Width="280px" Height="280px"
+                              ChartOptions="@_donutOptions" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" md="7">
+            <MudCard Elevation="3" Class="rounded-xl">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Monthly Spending (Last 6 mo.)</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudChart T="double" ChartType="ChartType.Bar"
+                              ChartSeries="@_barSeries" ChartLabels="@_barLabels"
+                              Width="100%" Height="260px"
+                              ChartOptions="@_barOptions" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+<style>
+    .stat-card { border-left-width: 4px !important; border-left-style: solid !important; border-radius: 12px; }
+    .border-primary { border-left-color: var(--mud-palette-primary) !important; }
+    .border-error   { border-left-color: var(--mud-palette-error) !important; }
+    .border-warning { border-left-color: var(--mud-palette-warning) !important; }
+    .border-info    { border-left-color: var(--mud-palette-info) !important; }
+    .text-uppercase { text-transform: uppercase; }
+</style>
+
+@code {
+    // Donut
+    private List<ChartSeries<double>> _donutSeries = new();
+    private string[] _donutLabels = Array.Empty<string>();
+    private ChartOptions _donutOptions = new() { ChartPalette = new[] { "#EAB308", "#0EA5E9", "#35c2a1" } };
+
+    // Bar
+    private List<ChartSeries<double>> _barSeries = new();
+    private string[] _barLabels = new string[6];
+    private ChartOptions _barOptions = new() { ChartPalette = new[] { "#35c2a1" } };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+        BuildCharts();
+    }
+
+    private void BuildCharts()
+    {
+        var store = Data.Store;
+        if (store is null) return;
+
+        // Donut
+        var maintCost = (double)store.MaintenanceRecords.Sum(x => x.Cost);
+        var fuelCost = (double)store.FuelRecords.Sum(x => x.TotalCost);
+        var tireCost = (double)store.TireRecords.Sum(x => x.PurchaseCost);
+        
+        _donutSeries = new List<ChartSeries<double>>
+        {
+            new() { Name = "Service", Data = new[] { maintCost } },
+            new() { Name = "Fuel", Data = new[] { fuelCost } },
+            new() { Name = "Tires", Data = new[] { tireCost } }
+        };
+        _donutLabels = new[] { "Service", "Fuel", "Tires" };
+
+        // Bar — last 6 months
+        var now = DateTime.Now;
+        var seriesData = new double[6];
+        for (int i = 5; i >= 0; i--)
+        {
+            var month = now.AddMonths(-i);
+            _barLabels[5 - i] = month.ToString("MMM");
+
+            var fuel  = store.FuelRecords.Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month).Sum(x => (double)x.TotalCost);
+            var maint = store.MaintenanceRecords.Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month).Sum(x => (double)x.Cost);
+            seriesData[5 - i] = fuel + maint;
+        }
+        _barSeries = new List<ChartSeries<double>> { new() { Name = "Spending", Data = seriesData } };
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

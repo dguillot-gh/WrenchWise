@@ -1,4 +1,7 @@
 using WrenchWise.Web.Components;
+using WrenchWise.Web;
+using System.Globalization;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,7 +9,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddMudServices();
+builder.Services.AddScoped<WebDataService>();
+builder.Services.AddHttpClient("BackendAPI", client =>
+{
+    var backendUrl = builder.Configuration["BackendApiUrl"] ?? "http://localhost:18080";
+    client.BaseAddress = new Uri(backendUrl);
+});
+
 var app = builder.Build();
+
+// Force en-US culture for currency formatting in Linux Docker containers
+var cultureInfo = new CultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

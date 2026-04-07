@@ -1,0 +1,120 @@
+@page "/fleet"
+@inject WebDataService Data
+@implements IDisposable
+
+<PageTitle>Fleet — WrenchWise</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mb-1">Fleet</MudText>
+<MudText Typo="Typo.body2" Class="opacity-60 mb-6">All vehicles at a glance.</MudText>
+
+@if (!Data.IsLoaded)
+{
+    <MudGrid Spacing="3">
+        @for (int i = 0; i < 3; i++)
+        {
+            <MudItem xs="12" sm="6" lg="4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="260px" Class="rounded-xl" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    var store = Data.Store!;
+
+    <MudGrid Spacing="3">
+        @foreach (var v in store.Vehicles.OrderByDescending(x => x.UpdatedUtc))
+        {
+            var spent  = Data.GetTotalSpent(v.Id);
+            var mpg    = Data.GetAverageMpg(v.Id);
+            var svcCount  = store.MaintenanceRecords.Count(x => x.VehicleId == v.Id);
+            var fuelCount = store.FuelRecords.Count(x => x.VehicleId == v.Id);
+            var dueCount  = store.ServiceReminders.Count(r => r.VehicleId == v.Id && Data.IsReminderDue(r));
+            var lastSvc   = store.MaintenanceRecords.Where(x => x.VehicleId == v.Id).MaxBy(x => x.ServiceDate);
+            var tires     = store.TireRecords.Where(x => x.VehicleId == v.Id && x.RemovedDate == null).ToList();
+
+            <MudItem xs="12" sm="6" lg="4">
+                <MudCard Elevation="3" Class="rounded-xl" Style="border: 1px solid var(--mud-palette-lines-default);">
+                    <div style="background: linear-gradient(135deg, var(--mud-palette-surface) 0%, #152230 100%); padding: 20px 20px 0 20px;">
+                        <div class="d-flex align-center gap-3 mb-3">
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large">@v.Nickname[0]</MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.h6" Class="fw-bold mb-0">@v.Nickname</MudText>
+                                <MudText Typo="Typo.body2" Class="opacity-60">@v.Year @v.Make @v.Model</MudText>
+                            </div>
+                            @if (dueCount > 0)
+                            {
+                                <MudSpacer />
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">@dueCount Due</MudChip>
+                            }
+                        </div>
+                        <MudGrid Spacing="2" Class="mb-2">
+                            <MudItem xs="6">
+                                <MudPaper Elevation="0" Class="pa-2 text-center rounded-lg" Style="background:rgba(53,194,161,0.08);">
+                                    <MudText Typo="Typo.caption" Class="opacity-60">Odometer</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold" Color="Color.Primary">@v.CurrentOdometer.ToString("N0") mi</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudPaper Elevation="0" Class="pa-2 text-center rounded-lg" Style="background:rgba(239,68,68,0.08);">
+                                    <MudText Typo="Typo.caption" Class="opacity-60">Total Spent</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold" Color="Color.Error">@spent.ToString("C0")</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudPaper Elevation="0" Class="pa-2 text-center rounded-lg" Style="background:rgba(14,165,233,0.08);">
+                                    <MudText Typo="Typo.caption" Class="opacity-60">Avg MPG</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold" Color="Color.Info">@mpg</MudText>
+                                </MudPaper>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudPaper Elevation="0" Class="pa-2 text-center rounded-lg" Style="background:rgba(234,179,8,0.08);">
+                                    <MudText Typo="Typo.caption" Class="opacity-60">Services</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold" Color="Color.Warning">@svcCount</MudText>
+                                </MudPaper>
+                            </MudItem>
+                        </MudGrid>
+                    </div>
+                    <MudCardContent Class="pt-3">
+                        <MudList T="string" Dense="true">
+                            <MudListItem Icon="@Icons.Material.Filled.LocalGasStation" IconColor="Color.Info">
+                                <div class="d-flex justify-space-between w-100">
+                                    <MudText Typo="Typo.body2">Fill-ups Logged</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold">@fuelCount</MudText>
+                                </div>
+                            </MudListItem>
+                            @if (lastSvc != null)
+                            {
+                                <MudListItem Icon="@Icons.Material.Filled.Build" IconColor="Color.Warning">
+                                    <div class="d-flex justify-space-between w-100">
+                                        <MudText Typo="Typo.body2">Last Service</MudText>
+                                        <MudText Typo="Typo.body2" Class="fw-bold">@lastSvc.ServiceDate.ToString("MMM d")</MudText>
+                                    </div>
+                                </MudListItem>
+                            }
+                            @if (tires.Any())
+                            {
+                                <MudListItem Icon="@Icons.Material.Filled.TireRepair" IconColor="Color.Default">
+                                    <div class="d-flex justify-space-between w-100">
+                                        <MudText Typo="Typo.body2">Current Tires</MudText>
+                                        <MudText Typo="Typo.body2" Class="fw-bold" Style="font-size:0.72rem;">@tires.First().BrandModel</MudText>
+                                    </div>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

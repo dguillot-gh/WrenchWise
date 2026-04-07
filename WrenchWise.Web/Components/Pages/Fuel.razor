@@ -1,0 +1,108 @@
+@page "/fuel"
+@inject WebDataService Data
+@implements IDisposable
+
+<PageTitle>Fuel Log — WrenchWise</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mb-1">Fuel Log</MudText>
+<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Every fill-up, every mile.</MudText>
+
+@if (!Data.IsLoaded)
+{
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="400px" Class="rounded-xl" />
+}
+else
+{
+    var store = Data.Store!;
+
+    @* ── Summary Chips ─────────────────────────────────────────────── *@
+    <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-xl" Style="background:var(--mud-palette-surface);">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_search" Label="Search station or grade" Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined"
+                              Clearable="true" Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="Guid?" @bind-Value="_vehicleFilter" Label="Filter by vehicle" Variant="Variant.Outlined" Clearable="true">
+                    <MudSelectItem T="Guid?" Value="null">All Vehicles</MudSelectItem>
+                    @foreach (var v in store.Vehicles)
+                    {
+                        <MudSelectItem T="Guid?" Value="v.Id">@v.Nickname (@v.Year @v.Make)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center gap-2 flex-wrap">
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">@FilteredRecords.Count fills</MudChip>
+                <MudChip T="string" Color="Color.Info" Size="Size.Small">@FilteredRecords.Sum(x => x.Gallons).ToString("N1") gal</MudChip>
+                <MudChip T="string" Color="Color.Error" Size="Size.Small">@FilteredRecords.Sum(x => x.TotalCost).ToString("C0") spent</MudChip>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTable Items="@FilteredRecords" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+              Class="rounded-xl" Elevation="3">
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<FuelRecord, object>(x => x.FillDate)" InitialDirection="SortDirection.Descending">Date</MudTableSortLabel></MudTh>
+            <MudTh>Vehicle</MudTh>
+            <MudTh>Station</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<FuelRecord, object>(x => x.Gallons)">Gallons</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<FuelRecord, object>(x => x.TotalCost)">Total</MudTableSortLabel></MudTh>
+            <MudTh>$/Gal</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<FuelRecord, object>(x => x.TripMiles > 0 && x.Gallons > 0 ? x.TripMiles / (double)x.Gallons : 0)">MPG</MudTableSortLabel></MudTh>
+            <MudTh>Odometer</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            @{ var ppg = context.Gallons > 0 ? context.TotalCost / context.Gallons : 0; }
+            @{ var mpg = context.TripMiles > 0 && context.Gallons > 0 ? context.TripMiles / (double)context.Gallons : 0; }
+            @{ var veh = Data.Store?.Vehicles.FirstOrDefault(x => x.Id == context.VehicleId); }
+            <MudTd DataLabel="Date">@context.FillDate.ToString("MMM d, yyyy")</MudTd>
+            <MudTd DataLabel="Vehicle">
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@(veh?.Nickname ?? "?")</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Station">@context.Station</MudTd>
+            <MudTd DataLabel="Gallons">@context.Gallons.ToString("N2")</MudTd>
+            <MudTd DataLabel="Total"><b>@context.TotalCost.ToString("C")</b></MudTd>
+            <MudTd DataLabel="$/Gal">@ppg.ToString("C3")</MudTd>
+            <MudTd DataLabel="MPG">
+                @if (mpg > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="@(mpg >= 30 ? Color.Success : mpg >= 20 ? Color.Warning : Color.Error)" Variant="Variant.Filled">
+                        @mpg.ToString("0.0")
+                    </MudChip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="opacity-40">—</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Odometer">@context.Odometer.ToString("N0") mi</MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new[] { 10, 20, 50 }" />
+        </PagerContent>
+    </MudTable>
+}
+
+@using WrenchWise.Shared.Models
+
+@code {
+    private string _search = string.Empty;
+    private Guid? _vehicleFilter;
+
+    private List<FuelRecord> FilteredRecords => Data.Store?.FuelRecords
+        .Where(x => (_vehicleFilter == null || x.VehicleId == _vehicleFilter)
+                 && (string.IsNullOrWhiteSpace(_search)
+                     || x.Station.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                     || x.FuelGrade.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        .OrderByDescending(x => x.FillDate)
+        .ToList() ?? new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}
