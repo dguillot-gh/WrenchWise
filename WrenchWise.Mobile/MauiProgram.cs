@@ -1,5 +1,6 @@
 using WrenchWise.Services;
 using Microsoft.Extensions.Logging;
+using MudBlazor.Services;
 
 namespace WrenchWise;
 
@@ -16,6 +17,7 @@ public static class MauiProgram
             });
 
         builder.Services.AddMauiBlazorWebView();
+        builder.Services.AddMudServices();
         builder.Services.AddSingleton<WrenchWiseService>();
 
 #if DEBUG

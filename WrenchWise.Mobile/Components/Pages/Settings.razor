@@ -1,52 +1,67 @@
 @page "/settings"
-@implements IDisposable
-@inject WrenchWiseService WrenchWise
 
 <PageTitle>Settings</PageTitle>
-<h1>Settings</h1>
-<p>Configure app behavior and backend connection.</p>
 
-<div class="card p-3 mb-3">
-    <label class="form-label">Backend API URL</label>
-    <input class="form-control mb-2" @bind="_apiUrl" placeholder="http://10.0.2.2:18080" />
-    <small class="text-muted">Example for Android emulator: `http://10.0.2.2:18080`</small>
-    <div class="mt-3 d-flex gap-2">
-        <button class="btn btn-primary" @onclick="SaveApiUrlAsync">Save URL</button>
-    </div>
-    @if (!string.IsNullOrWhiteSpace(_status))
-    {
-        <div class="mt-2 alert @(_error ? "alert-danger" : "alert-success")">@_status</div>
-    }
-</div>
+<MudText Typo="Typo.h5" Class="mb-4">Settings</MudText>
 
-@code {
-    private string _apiUrl = string.Empty;
-    private string _status = string.Empty;
-    private bool _error;
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Storage" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">Server Configuration</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <MudStack Spacing="3">
+            <MudTextField Label="Server Base URL"
+                          Value="@("https://api.wrenchwise.example.com")"
+                          ReadOnly="true"
+                          Variant="Variant.Outlined"
+                          HelperText="Changes to the instance URL require re-authenticating."
+                          Margin="Margin.Dense" />
 
-    protected override async Task OnInitializedAsync()
-    {
-        await WrenchWise.InitializeAsync();
-        WrenchWise.Changed += HandleChanged;
-        _apiUrl = WrenchWise.ApiBaseUrl;
-    }
+            <MudTextField Label="API Key"
+                          Value="@("********************************")"
+                          InputType="InputType.Password"
+                          ReadOnly="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense" />
 
-    private async Task SaveApiUrlAsync()
-    {
-        try
-        {
-            await WrenchWise.SetApiBaseUrlAsync(_apiUrl);
-            _status = "API URL saved.";
-            _error = false;
-        }
-        catch (Exception ex)
-        {
-            _status = ex.Message;
-            _error = true;
-        }
-    }
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       FullWidth="true"
+                       Class="rounded-pill mt-2">
+                Log Out / Disconnect
+            </MudButton>
+        </MudStack>
+    </MudCardContent>
+</MudCard>
 
-    private void HandleChanged() => InvokeAsync(StateHasChanged);
+<MudCard Elevation="1" Class="mb-6">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Security" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">Security & Privacy</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <div class="d-flex justify-space-between align-center">
+             <div>
+                 <MudText Typo="Typo.body1">Require Biometrics</MudText>
+                 <MudText Typo="Typo.caption" Class="opacity-60">Use FaceID/Fingerprint to open app</MudText>
+             </div>
+             <MudSwitch T="bool" Color="Color.Primary" />
+        </div>
+    </MudCardContent>
+</MudCard>
 
-    public void Dispose() => WrenchWise.Changed -= HandleChanged;
-}
+<MudStack AlignItems="AlignItems.Center" Spacing="1" Class="mt-12 mb-8 opacity-40">
+    <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Large" />
+    <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">WrenchWise Mobile</MudText>
+    <MudText Typo="Typo.caption">Version 1.0.0 (Build 4)</MudText>
+</MudStack>
+

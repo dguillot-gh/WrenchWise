@@ -1,110 +1,179 @@
 @page "/fuel"
 @implements IDisposable
 @inject WrenchWiseService WrenchWise
+@inject ISnackbar Snackbar
 
-<PageTitle>Fuel</PageTitle>
-<h1>Fuel Log</h1>
+<PageTitle>Fuel Logs</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">Fuel Logs</MudText>
+    @if (WrenchWise.Vehicles.Count > 0)
+    {
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="ToggleForm" Label="Add New" />
+    }
+</div>
 
 @if (WrenchWise.Vehicles.Count == 0)
 {
-    <div class="alert alert-warning">Add a vehicle first.</div>
+    <MudPaper Class="pa-8 d-flex flex-column align-center justify-center mud-text-secondary" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.LocalGasStation" Size="Size.Large" Class="mb-4 opacity-20" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h6">No Vehicles Found</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-4">Please add a vehicle first to start logging fuel.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="vehicles">Go to Vehicles</MudButton>
+    </MudPaper>
 }
 else
 {
-    <EditForm Model="_record" OnValidSubmit="SaveFuelAsync" class="card p-3 mb-3">
-        <DataAnnotationsValidator />
-        <div class="row g-2">
-            <div class="col-md-3">
-                <select class="form-select" @bind="_record.VehicleId" @bind:after="ApplySuggestedOdometer">
-                    @foreach (var vehicle in WrenchWise.Vehicles)
-                    {
-                        <option value="@vehicle.Id">@vehicle.Nickname</option>
-                    }
-                </select>
+    <MudCollapse Expanded="_showForm">
+        <MudCard Elevation="4" Class="mb-6 border-l-4 border-info">
+            <MudCardHeader>
+                <CardHeaderAvatar>
+                    <MudAvatar Color="Color.Info" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Filled.LocalGasStation" /></MudAvatar>
+                </CardHeaderAvatar>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">New Fuel Entry</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <EditForm Model="_record" OnValidSubmit="SaveFuelAsync">
+                    <DataAnnotationsValidator />
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="Guid" Label="Vehicle" @bind-Value="_record.VehicleId" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var vehicle in WrenchWise.Vehicles)
+                                {
+                                    <MudSelectItem Value="@vehicle.Id">@vehicle.Nickname</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="Date" @bind-Date="_fillDate" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="4" sm="3">
+                            <MudNumericField T="int" Label="Trip Miles" @bind-Value="_record.Odometer" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="4" sm="3">
+                            <MudNumericField T="decimal" Label="Gallons" @bind-Value="_record.Gallons" Variant="Variant.Outlined" Margin="Margin.Dense" Format="F2" />
+                        </MudItem>
+                        <MudItem xs="4" sm="3">
+                            <MudNumericField T="decimal" Label="Total Cost" @bind-Value="_record.TotalCost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3" Class="d-flex align-center">
+                            <MudCheckBox T="bool" @bind-Value="_record.FullTank" Label="Full Tank" Color="Color.Primary" />
+                        </MudItem>
+
+                        <MudItem xs="12" Class="d-flex justify-end gap-2 mt-2">
+                            <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="ToggleForm">Cancel</MudButton>
+                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save Entry</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </EditForm>
+            </MudCardContent>
+        </MudCard>
+    </MudCollapse>
+
+    @if (_ocrFuelId != Guid.Empty)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4 pa-4">
+            <MudText Typo="Typo.subtitle2">Receipt OCR Hints</MudText>
+            <MudTextField @bind-Value="_ocrText" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-2" Placeholder="Detected text from receipt..." />
+            <div class="d-flex justify-end gap-2 mt-2">
+                <MudButton OnClick="CancelOcr" Variant="Variant.Text">Cancel</MudButton>
+                <MudButton OnClick="SaveOcrTextAsync" Variant="Variant.Filled" Color="Color.Primary">Apply Hints</MudButton>
             </div>
-            <div class="col-md-2">
-                <InputDate class="form-control" @bind-Value="_fillDate" />
-            </div>
-            <div class="col-md-2">
-                <input class="form-control" @bind="_record.Odometer" type="number" placeholder="Odometer" />
-            </div>
-            <div class="col-md-2">
-                <input class="form-control" @bind="_record.Gallons" type="number" step="0.01" placeholder="Gallons" />
-            </div>
-            <div class="col-md-2">
-                <input class="form-control" @bind="_record.TotalCost" type="number" step="0.01" placeholder="Total $" />
-            </div>
-            <div class="col-md-1 form-check d-flex align-items-center ps-4">
-                <input class="form-check-input" type="checkbox" @bind="_record.FullTank" />
-            </div>
-            <div class="col-md-3">
-                <input class="form-control" @bind="_record.Station" placeholder="Station" />
-            </div>
-            <div class="col-md-2">
-                <select class="form-select" @bind="_record.FuelGrade">
-                    <option>Regular</option>
-                    <option>Midgrade</option>
-                    <option>Premium</option>
-                    <option>Diesel</option>
-                    <option>E85</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <input class="form-control" @bind="_record.EthanolPercent" type="number" step="1" placeholder="Ethanol %" />
-            </div>
-            <div class="col-md-5">
-                <input class="form-control" @bind="_record.AdditiveNotes" placeholder="Additives / quality notes" />
-            </div>
-        </div>
-        <button class="btn btn-primary mt-3" type="submit">Add Fuel Entry</button>
-    </EditForm>
+        </MudAlert>
+    }
+
+    @if (WrenchWise.FuelRecords.Count == 0)
+    {
+        <MudPaper Class="pa-8 d-flex flex-column align-center justify-center opacity-40" Elevation="0" Outlined="true">
+            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Style="font-size: 3rem;" />
+            <MudText Typo="Typo.body1">No Fuel Logs</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudStack Spacing="3">
+            @foreach (var record in WrenchWise.FuelRecords.OrderByDescending(x => x.FillDate))
+            {
+                <MudCard Elevation="2" Class="rounded-lg">
+                    <MudCardHeader Class="pb-0">
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="Color.Info" Variant="Variant.Text" Size="Size.Small"><MudIcon Icon="@Icons.Material.Filled.LocalGasStation" /></MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.body1" Color="Color.Info"><b>@record.TotalCost.ToString("C")</b></MudText>
+                                <MudText Typo="Typo.caption" Class="opacity-60">@record.FillDate.ToString("MMM d, yyyy")</MudText>
+                            </div>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight">
+                                <MudMenuItem Icon="@Icons.Material.Filled.PhotoCamera" OnClick="() => AttachReceiptAsync(record.Id)">Attach Receipt</MudMenuItem>
+                                <MudMenuItem Icon="@Icons.Material.Filled.Description" OnClick="() => EditOcr(record)">Receipt OCR</MudMenuItem>
+                                <MudDivider />
+                                <MudMenuItem Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => WrenchWise.DeleteFuelRecordAsync(record.Id)">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent Class="pt-2">
+                        <div class="d-flex align-center gap-4">
+                            <div class="d-flex align-center gap-1 opacity-80">
+                                <MudIcon Icon="@Icons.Material.Filled.WaterDrop" Size="Size.Small" />
+                                <MudText Typo="Typo.body2">@record.Gallons gal</MudText>
+                            </div>
+
+                            @if (record.TripMiles > 0 && record.Gallons > 0 && record.FullTank)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AutoGraph">
+                                    @((record.TripMiles / (double)record.Gallons).ToString("0.0")) MPG
+                                </MudChip>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-space-between align-center mt-3">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Icon="@Icons.Material.Filled.DirectionsCar">
+                                @FindVehicle(record.VehicleId)
+                            </MudChip>
+                            @if (record.TripMiles > 0)
+                            {
+                                <MudText Typo="Typo.caption" Class="opacity-60">@record.TripMiles miles traveled</MudText>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudStack>
+    }
 }
 
-@foreach (var record in WrenchWise.FuelRecords.OrderByDescending(x => x.FillDate))
-{
-    <div class="card p-3 mb-2">
-        <div class="d-flex justify-content-between">
-            <div>
-                <strong>@FindVehicle(record.VehicleId)</strong> - @record.FillDate.ToString("d")
-                <div>@record.Gallons gal at @record.Odometer miles | @record.TotalCost.ToString("C")</div>
-                <div>@record.FuelGrade @(record.EthanolPercent.HasValue ? $"- E{record.EthanolPercent.Value:0}" : string.Empty) | Station: @(string.IsNullOrWhiteSpace(record.Station) ? "N/A" : record.Station)</div>
-                @if (!string.IsNullOrWhiteSpace(record.ReceiptImagePath))
-                {
-                    <div class="text-muted">Receipt: saved</div>
-                }
-            </div>
-            <div class="d-flex flex-column gap-2">
-                <button class="btn btn-sm btn-outline-primary" @onclick="() => AttachReceiptAsync(record.Id)">Attach Receipt</button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditOcr(record)">OCR Text</button>
-                <button class="btn btn-sm btn-outline-danger" @onclick="() => WrenchWise.DeleteFuelRecordAsync(record.Id)">Delete</button>
-            </div>
-        </div>
-    </div>
-}
-
-@if (_ocrFuelId != Guid.Empty)
-{
-    <div class="card p-3 mt-3">
-        <div class="mb-2">Receipt OCR Text (paste or edit)</div>
-        <textarea class="form-control mb-2" rows="4" @bind="_ocrText"></textarea>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary" @onclick="SaveOcrTextAsync">Apply OCR Hints</button>
-            <button class="btn btn-outline-secondary" @onclick="CancelOcr">Cancel</button>
-        </div>
-    </div>
-}
+<style>
+    .border-l-4 { border-left-width: 4px !important; border-left-style: solid !important; }
+    .border-info { border-left-color: var(--mud-palette-info) !important; }
+</style>
 
 @code {
     private FuelRecord _record = new();
-    private DateTime _fillDate = DateTime.Today;
+    private DateTime? _fillDate = DateTime.Today;
     private Guid _ocrFuelId;
     private string _ocrText = string.Empty;
+    private bool _showForm = false;
+    private Guid? _activeMenuId;
 
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
         WrenchWise.Changed += HandleChanged;
         ResetRecord();
+    }
+
+    private void ToggleForm()
+    {
+        _showForm = !_showForm;
+        if (!_showForm) ResetRecord();
     }
 
     private async Task SaveFuelAsync()
@@ -114,9 +183,11 @@ else
             return;
         }
 
-        _record.FillDate = DateOnly.FromDateTime(_fillDate);
+        _record.FillDate = DateOnly.FromDateTime(_fillDate ?? DateTime.Today);
         await WrenchWise.AddFuelRecordAsync(_record);
+        Snackbar.Add($"Fuel entry saved for {FindVehicle(_record.VehicleId)}", Severity.Success);
         ResetRecord();
+        _showForm = false;
     }
 
     private async Task AttachReceiptAsync(Guid fuelId)
@@ -132,12 +203,10 @@ else
 
     private async Task SaveOcrTextAsync()
     {
-        if (_ocrFuelId == Guid.Empty)
-        {
-            return;
-        }
+        if (_ocrFuelId == Guid.Empty) return;
 
         await WrenchWise.ApplyReceiptTextAsync(_ocrFuelId, _ocrText);
+        Snackbar.Add("OCR hints applied", Severity.Info);
         CancelOcr();
     }
 
@@ -159,15 +228,6 @@ else
             EthanolPercent = 10
         };
         _fillDate = DateTime.Today;
-        ApplySuggestedOdometer();
-    }
-
-    private void ApplySuggestedOdometer()
-    {
-        if (_record.VehicleId != Guid.Empty)
-        {
-            _record.Odometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);
-        }
     }
 
     private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";

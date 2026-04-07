@@ -1,91 +1,121 @@
 @page "/timeline"
+@implements IDisposable
 @inject WrenchWiseService WrenchWise
 
 <PageTitle>Timeline</PageTitle>
-<h1>Vehicle Timeline</h1>
-<p>Fuel, service, tire, and reminder events in one feed.</p>
 
-@if (TimelineItems.Count == 0)
+<MudText Typo="Typo.h5" Class="mb-4">Vehicle History</MudText>
+
+@if (WrenchWise.Vehicles.Count == 0)
 {
-    <div class="alert alert-info">No timeline events yet for the current vehicle filter.</div>
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-60">
+        <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" />
+        <MudText Typo="Typo.h6">No Timeline Available</MudText>
+        <MudText Typo="Typo.body2">Your vehicle history will appear here once you log fuel or maintenance.</MudText>
+    </MudStack>
 }
 else
 {
-    @foreach (var item in TimelineItems)
+    var events = GetTimelineEvents();
+    if (!events.Any())
     {
-        <div class="card p-3 mb-2">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <strong>@item.Title</strong>
-                    <div>@item.Description</div>
-                    <div class="text-muted">@item.EventDate.ToString("d") | @item.VehicleName</div>
-                </div>
-                @if (item.Amount.HasValue)
-                {
-                    <div class="text-end">@item.Amount.Value.ToString("C")</div>
-                }
-            </div>
-        </div>
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-60">
+            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" />
+            <MudText Typo="Typo.h6">No Events Logged</MudText>
+            <MudText Typo="Typo.body2">No activity has been recorded for your active vehicle yet.</MudText>
+        </MudStack>
+    }
+    else
+    {
+        <MudTimeline TimelinePosition="TimelinePosition.Start" Class="pa-0">
+            @foreach (var ev in events)
+            {
+                var isFuel = ev.Type == "FuelFillUp";
+                var isMaint = ev.Type == "MaintenanceEvent";
+                var isTire = ev.Type == "TireSetInstalled";
+
+                Color itemColor = isFuel ? Color.Info : isMaint ? Color.Warning : isTire ? Color.Primary : Color.Default;
+                string itemIcon = isFuel ? Icons.Material.Filled.LocalGasStation :
+                                 isMaint ? Icons.Material.Filled.Build :
+                                 isTire ? Icons.Material.Filled.Settings : Icons.Material.Filled.Event;
+
+                <MudTimelineItem Color="itemColor" Variant="Variant.Filled" Size="Size.Medium">
+                    <ItemOpposite>
+                        <MudText Typo="Typo.caption" Class="opacity-60">@ev.Date.ToString("MMM d")</MudText>
+                    </ItemOpposite>
+                    <ItemContent>
+                        <MudCard Elevation="1" Class="mb-4 border-l-4" Style="@($"border-left-color: var(--mud-palette-{itemColor.ToString().ToLower()});")">
+                            <MudCardContent>
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <MudText Typo="Typo.subtitle2" Color="itemColor">@ev.Title</MudText>
+                                    <MudText Typo="Typo.caption" Class="opacity-50">@ev.Date.ToString("yyyy")</MudText>
+                                </div>
+                                <MudText Typo="Typo.body2" Class="opacity-80">@ev.Description</MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </ItemContent>
+                </MudTimelineItem>
+            }
+        </MudTimeline>
     }
 }
 
 @code {
-    private List<TimelineItem> TimelineItems => BuildTimeline();
-
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
     }
 
-    private List<TimelineItem> BuildTimeline()
+    private class TimelineEvent
     {
-        var activeVehicle = WrenchWise.ActiveVehicleId;
-
-        var fuels = WrenchWise.FuelRecords
-            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
-            .Select(x => new TimelineItem(
-                DateTime.Parse(x.FillDate.ToString("yyyy-MM-dd")),
-                "Fuel Fill",
-                $"{x.Gallons} gal at {x.Odometer} miles ({x.FuelGrade})",
-                VehicleName(x.VehicleId),
-                x.TotalCost));
-
-        var maintenance = WrenchWise.MaintenanceRecords
-            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
-            .Select(x => new TimelineItem(
-                DateTime.Parse(x.ServiceDate.ToString("yyyy-MM-dd")),
-                x.ServiceType,
-                $"{x.Odometer} miles | {x.ShopName}",
-                VehicleName(x.VehicleId),
-                x.Cost));
-
-        var tires = WrenchWise.TireRecords
-            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
-            .Select(x => new TimelineItem(
-                DateTime.Parse(x.InstalledDate.ToString("yyyy-MM-dd")),
-                "Tire Installed",
-                $"{x.Position} - {x.BrandModel} at {x.InstalledOdometer} miles",
-                VehicleName(x.VehicleId),
-                x.PurchaseCost));
-
-        var reminders = WrenchWise.ServiceReminders
-            .Where(x => activeVehicle == Guid.Empty || x.VehicleId == activeVehicle)
-            .Select(x => new TimelineItem(
-                DateTime.Parse((x.DueDate ?? DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd")),
-                "Reminder",
-                $"{x.Title} ({(x.IsCompleted ? "Completed" : "Open")})",
-                VehicleName(x.VehicleId),
-                null));
-
-        return fuels
-            .Concat(maintenance)
-            .Concat(tires)
-            .Concat(reminders)
-            .OrderByDescending(x => x.EventDate)
-            .ToList();
+        public DateOnly Date { get; set; }
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = "";
     }
 
-    private string VehicleName(Guid id) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == id)?.Nickname ?? "Unknown";
+    private IEnumerable<TimelineEvent> GetTimelineEvents()
+    {
+        var activeId = WrenchWise.ActiveVehicleId;
+        var history = new List<TimelineEvent>();
 
-    private record TimelineItem(DateTime EventDate, string Title, string Description, string VehicleName, decimal? Amount);
+        foreach (var fr in WrenchWise.FuelRecords.Where(x => activeId == Guid.Empty || x.VehicleId == activeId))
+        {
+            history.Add(new TimelineEvent
+            {
+                Date = fr.FillDate,
+                Title = "Fuel Fill-up",
+                Description = $"{fr.Gallons} gal • {fr.TotalCost:C} • {fr.Odometer:N0} mi",
+                Type = "FuelFillUp"
+            });
+        }
+
+        foreach (var mr in WrenchWise.MaintenanceRecords.Where(x => activeId == Guid.Empty || x.VehicleId == activeId))
+        {
+            history.Add(new TimelineEvent
+            {
+                Date = mr.ServiceDate,
+                Title = mr.ServiceType,
+                Description = $"{mr.Cost:C} at {mr.Odometer:N0} mi • {mr.ShopName}",
+                Type = "MaintenanceEvent"
+            });
+        }
+
+        foreach (var tr in WrenchWise.TireRecords.Where(x => activeId == Guid.Empty || x.VehicleId == activeId))
+        {
+            history.Add(new TimelineEvent
+            {
+                Date = tr.InstalledDate,
+                Title = "New Tires",
+                Description = $"{tr.BrandModel} ({tr.Position}) • {tr.InstalledOdometer:N0} mi",
+                Type = "TireSetInstalled"
+            });
+        }
+
+        return history.OrderByDescending(e => e.Date).ToList();
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
 }

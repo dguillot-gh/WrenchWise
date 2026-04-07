@@ -2,116 +2,144 @@
 @implements IDisposable
 @inject WrenchWiseService WrenchWise
 
-<PageTitle>Sync</PageTitle>
-<h1>Sync Settings</h1>
-<p>This app logs data locally first. Sync when you have connectivity to your home server.</p>
+<PageTitle>Sync to Cloud</PageTitle>
 
-<div class="card p-3 mb-3">
-    <label class="form-label">Backend API URL</label>
-    <input class="form-control mb-2" @bind="_apiUrl" placeholder="http://192.168.x.x:18080" />
-    <small class="text-muted">Use your Tailscale IP or local LAN IP where Docker is running.</small>
-    <div class="mt-3 d-flex gap-2">
-        <button class="btn btn-outline-primary" @onclick="SaveApiUrlAsync">Save URL</button>
-        <button class="btn btn-primary" @onclick="RunSyncAsync" disabled="@_syncing">Sync Now</button>
-    </div>
-</div>
+<MudText Typo="Typo.h5" Class="mb-4">Sync to Server</MudText>
 
-<div class="card p-3">
-    <div>Pending operations: <strong>@WrenchWise.PendingSyncCount</strong></div>
-    <div>Last sync: <strong>@(WrenchWise.LastSyncUtc?.ToLocalTime().ToString("f") ?? "Never")</strong></div>
-    <div class="mt-3 d-flex gap-2 flex-wrap">
-        <button class="btn btn-outline-primary" @onclick="ExportJsonAsync">Export JSON Backup</button>
-        <button class="btn btn-outline-primary" @onclick="ExportCsvAsync">Export CSV Backup</button>
-    </div>
-    <div class="mt-3 d-flex gap-2 flex-wrap">
-        <button class="btn btn-outline-secondary" @onclick="ImportJsonAsync">Import JSON Backup</button>
-        <button class="btn btn-outline-secondary" @onclick="ImportCsvAsync">Import CSV</button>
-    </div>
-    <small class="text-muted d-block mt-2">
-        Import replaces/merges local data and queues it for next sync.
-    </small>
-    @if (!string.IsNullOrWhiteSpace(_backupPath))
+<MudPaper Class="pa-6 mb-4 d-flex flex-column align-center" Elevation="1">
+    @if (WrenchWise.PendingSyncCount > 0)
     {
-        <div class="mt-2 text-muted">Backup file: @_backupPath</div>
+        <MudAvatar Color="Color.Warning" Variant="Variant.Filled" Style="height:70px; width:70px;" Class="mb-4">
+            <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Large" />
+        </MudAvatar>
+
+        <MudText Typo="Typo.h6" Align="Align.Center">@WrenchWise.PendingSyncCount Pending Edits</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="opacity-60 mb-6">
+            Your pending changes are saved offline and waiting to be synced to your WrenchWise Server.
+        </MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Large"
+                   FullWidth="true"
+                   OnClick="AttemptSyncAsync"
+                   Disabled="@_isSyncing"
+                   StartIcon="@(_isSyncing ? null : Icons.Material.Filled.CloudUpload)"
+                   Class="rounded-pill py-3">
+            @if (_isSyncing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/>
+                <span>Syncing...</span>
+            }
+            else
+            {
+                <span>Sync Now</span>
+            }
+        </MudButton>
     }
-    @if (!string.IsNullOrWhiteSpace(_status))
+    else
     {
-        <div class="mt-2 alert @(_error ? "alert-danger" : "alert-success")">@_status</div>
+        <MudAvatar Color="Color.Success" Variant="Variant.Filled" Style="height:70px; width:70px;" Class="mb-4">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" />
+        </MudAvatar>
+
+        <MudText Typo="Typo.h6" Align="Align.Center">All Synced up!</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="opacity-60">
+            Your local offline database is fully synced to your WrenchWise server.
+        </MudText>
     }
-</div>
+
+    @if (!string.IsNullOrEmpty(_syncError))
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-4" Variant="Variant.Filled">
+            @_syncError
+        </MudAlert>
+    }
+</MudPaper>
+
+<MudCard Elevation="1">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.subtitle1">Connection Details</MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <MudList T="string" Dense="true">
+            <MudListItem Icon="@Icons.Material.Filled.AccessTime">
+                <ChildContent>
+                    Last Sync
+                </ChildContent>
+            </MudListItem>
+            <MudText Typo="Typo.caption" Class="opacity-60 px-12 pb-2">
+                @(WrenchWise.LastSyncUtc?.ToLocalTime().ToString("g") ?? "Never")
+            </MudText>
+
+            <MudListItem Icon="@Icons.Material.Filled.CloudQueue">
+                <ChildContent>
+                    Status
+                </ChildContent>
+            </MudListItem>
+            <div class="px-12 pb-2">
+                @if (WrenchWise.PendingSyncCount == 0)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Up to date</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Offline Changes</MudChip>
+                }
+            </div>
+        </MudList>
+
+        <MudDivider Class="my-2" />
+        
+        <MudText Typo="Typo.caption" Class="opacity-60 px-4 d-block mb-4">
+            Running offline-first. To configure your server credentials, update Settings.
+        </MudText>
+
+        <div class="px-4 pb-2">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       Size="Size.Small"
+                       Href="settings"
+                       FullWidth="true"
+                       Class="rounded-pill">
+                View Settings
+            </MudButton>
+        </div>
+    </MudCardContent>
+</MudCard>
 
 @code {
-    private string _apiUrl = string.Empty;
-    private string _status = string.Empty;
-    private string _backupPath = string.Empty;
-    private bool _syncing;
-    private bool _error;
+    private bool _isSyncing;
+    private string _syncError = "";
 
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
         WrenchWise.Changed += HandleChanged;
-        _apiUrl = WrenchWise.ApiBaseUrl;
     }
 
-    private async Task SaveApiUrlAsync()
+    private async Task AttemptSyncAsync()
     {
-        await WrenchWise.SetApiBaseUrlAsync(_apiUrl);
-        _status = "API URL saved.";
-        _error = false;
-    }
+        _isSyncing = true;
+        _syncError = "";
+        StateHasChanged();
 
-    private async Task RunSyncAsync()
-    {
-        _syncing = true;
-        _status = string.Empty;
-        _error = false;
         try
         {
-            await WrenchWise.SetApiBaseUrlAsync(_apiUrl);
             await WrenchWise.SyncNowAsync();
-            _status = "Sync completed.";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
-            _status = ex.Message;
-            _error = true;
+            _syncError = ex.Message;
         }
         finally
         {
-            _syncing = false;
+            _isSyncing = false;
         }
     }
 
-    private async Task ExportJsonAsync()
-    {
-        _backupPath = await WrenchWise.ExportJsonBackupAsync();
-        _status = "JSON backup exported.";
-        _error = false;
-    }
-
-    private async Task ExportCsvAsync()
-    {
-        _backupPath = await WrenchWise.ExportCsvBackupAsync();
-        _status = "CSV backup exported.";
-        _error = false;
-    }
-
-    private async Task ImportJsonAsync()
-    {
-        var result = await WrenchWise.ImportFromJsonAsync();
-        _status = result.Message;
-        _error = !result.Success;
-    }
-
-    private async Task ImportCsvAsync()
-    {
-        var result = await WrenchWise.ImportFromCsvAsync();
-        _status = result.Message;
-        _error = !result.Success;
-    }
-
     private void HandleChanged() => InvokeAsync(StateHasChanged);
-
     public void Dispose() => WrenchWise.Changed -= HandleChanged;
 }

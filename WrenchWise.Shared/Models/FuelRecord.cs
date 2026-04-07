@@ -6,6 +6,7 @@ public class FuelRecord
     public Guid VehicleId { get; set; }
     public DateOnly FillDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int Odometer { get; set; }
+    public double TripMiles { get; set; }
     public decimal Gallons { get; set; }
     public decimal TotalCost { get; set; }
     public bool FullTank { get; set; } = true;

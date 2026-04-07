@@ -1,117 +1,183 @@
 @page "/tires"
 @implements IDisposable
 @inject WrenchWiseService WrenchWise
+@inject ISnackbar Snackbar
 
 <PageTitle>Tires</PageTitle>
-<h1>Tire Tracking</h1>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h5">Tire Tracking</MudText>
+    @if (WrenchWise.Vehicles.Count > 0)
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.Add"
+                       Color="Color.Primary"
+                       OnClick="ToggleForm"
+                       Variant="Variant.Filled"
+                       Size="Size.Small" />
+    }
+</div>
 
 @if (WrenchWise.Vehicles.Count == 0)
 {
-    <div class="alert alert-warning">Add a vehicle first.</div>
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-60">
+        <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Size="Size.Large" />
+        <MudText Typo="Typo.h6">No Vehicles Found</MudText>
+        <MudText Typo="Typo.body2">Please add a vehicle first to start logging tire sets.</MudText>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Href="vehicles">Go to Vehicles</MudButton>
+    </MudStack>
 }
 else
 {
-    <EditForm Model="_tire" OnValidSubmit="SaveTireAsync" class="card p-3 mb-3">
-        <div class="row g-2">
-            <div class="col-md-3">
-                <select class="form-select" @bind="_tire.VehicleId" @bind:after="ApplySuggestedOdometer">
-                    @foreach (var vehicle in WrenchWise.Vehicles)
-                    {
-                        <option value="@vehicle.Id">@vehicle.Nickname</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select class="form-select" @bind="_tire.Position">
-                    <option>Front Left</option>
-                    <option>Front Right</option>
-                    <option>Rear Left</option>
-                    <option>Rear Right</option>
-                    <option>Spare</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <input class="form-control" @bind="_tire.BrandModel" placeholder="Brand and model" />
-            </div>
-            <div class="col-md-2">
-                <InputDate class="form-control" @bind-Value="_installedDate" />
-            </div>
-            <div class="col-md-2">
-                <input class="form-control" @bind="_tire.InstalledOdometer" type="number" placeholder="Install odo" />
-            </div>
-            <div class="col-md-2">
-                <input class="form-control" @bind="_tire.PurchaseCost" type="number" step="0.01" placeholder="Cost" />
-            </div>
-            <div class="col-md-10">
-                <input class="form-control" @bind="_tire.Notes" placeholder="Notes" />
-            </div>
-        </div>
-        <button class="btn btn-primary mt-3" type="submit">Add Tire Record</button>
-    </EditForm>
-}
+    <MudCollapse Expanded="_showForm">
+        <MudCard Elevation="2" Class="mb-6 border-l-4 border-solid" Style="border-left-color: var(--mud-palette-primary);">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.subtitle1">New Tire Set</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" Size="Size.Small" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid" Label="Vehicle" @bind-Value="_record.VehicleId" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                            @foreach (var vehicle in WrenchWise.Vehicles)
+                            {
+                                <MudSelectItem Value="@vehicle.Id">@vehicle.Nickname</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Brand & Model" @bind-Value="_record.BrandModel" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="e.g. Michelin Defender" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Position / Info" @bind-Value="_record.Position" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="e.g. Front Right, Full Set" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField Label="Total Cost" @bind-Value="_record.PurchaseCost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Label="Install Date" @bind-Date="_installDate" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField Label="Install Odometer" @bind-Value="_record.InstalledOdometer" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true" />
+                    </MudItem>
+                    <MudItem xs="12" Class="d-flex justify-end">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRecordAsync" Class="rounded-pill px-6">Save Tires</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudCollapse>
 
-@foreach (var tire in WrenchWise.TireRecords.OrderByDescending(x => x.InstalledDate))
-{
-    <div class="card p-3 mb-2">
-        <div class="d-flex justify-content-between">
-            <div>
-                <strong>@FindVehicle(tire.VehicleId)</strong> - @tire.Position
-                <div>@tire.BrandModel</div>
-                <div>Installed: @tire.InstalledDate.ToString("d") at @tire.InstalledOdometer miles</div>
-                <div>Cost: @tire.PurchaseCost.ToString("C")</div>
-            </div>
-            <button class="btn btn-sm btn-outline-danger" @onclick="() => WrenchWise.DeleteTireRecordAsync(tire.Id)">Delete</button>
-        </div>
-    </div>
+    @if (WrenchWise.TireRecords.Count == 0)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-60">
+            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" />
+            <MudText Typo="Typo.h6">No Tires Tracked</MudText>
+            <MudText Typo="Typo.body2">Add a new set of tires to start tracking their lifespan.</MudText>
+        </MudStack>
+    }
+    else
+    {
+        <MudStack Spacing="3">
+            @foreach (var set in WrenchWise.TireRecords.OrderByDescending(x => x.InstalledDate))
+            {
+                var vehicle = WrenchWise.Vehicles.FirstOrDefault(v => v.Id == set.VehicleId);
+                var currentOdo = vehicle?.CurrentOdometer ?? 0;
+                var milesDriven = Math.Max(0, currentOdo - set.InstalledOdometer);
+                
+                <MudCard Elevation="1">
+                    <MudCardHeader>
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Text">
+                                <MudIcon Icon="@Icons.Material.Filled.Settings" />
+                            </MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1">@set.BrandModel</MudText>
+                            <MudText Typo="Typo.caption" Class="opacity-60">@set.Position</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                             <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
+                                <MudMenuItem OnClick="() => WrenchWise.DeleteTireRecordAsync(set.Id)" IconColor="Color.Error" Icon="@Icons.Material.Filled.Delete">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent Class="pt-0">
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <MudText Typo="Typo.body2" Class="opacity-70">Distance driven:</MudText>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">@milesDriven.ToString("N0") mi</MudText>
+                        </div>
+                        <MudDivider Class="my-2" />
+                        <div class="d-flex justify-space-between align-center">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.DirectionsCar">
+                                @(vehicle?.Nickname ?? "Unknown")
+                            </MudChip>
+                            <MudText Typo="Typo.caption" Class="opacity-50">
+                                @set.InstalledDate.ToString("MMM yyyy")
+                            </MudText>
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudStack>
+    }
 }
 
 @code {
-    private TireRecord _tire = new();
-    private DateTime _installedDate = DateTime.Today;
+    private TireRecord _record = new();
+    private DateTime? _installDate = DateTime.Today;
+    private bool _showForm = false;
 
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
         WrenchWise.Changed += HandleChanged;
-        ResetForm();
+        ResetRecord();
     }
 
-    private async Task SaveTireAsync()
+    private void ToggleForm()
     {
-        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_tire.BrandModel))
-        {
-            return;
-        }
-
-        _tire.InstalledDate = DateOnly.FromDateTime(_installedDate);
-        await WrenchWise.AddTireRecordAsync(_tire);
-        ResetForm();
+        _showForm = !_showForm;
+        if (!_showForm) ResetRecord();
     }
 
-    private void ResetForm()
+    private void ResetRecord()
     {
-        _tire = new TireRecord
+        _record = new TireRecord
         {
             VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty
                 ? WrenchWise.ActiveVehicleId
                 : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty,
-            Position = "Front Left"
+            Position = "Full Set"
         };
-        _installedDate = DateTime.Today;
-        ApplySuggestedOdometer();
-    }
+        _installDate = DateTime.Today;
 
-    private void ApplySuggestedOdometer()
-    {
-        if (_tire.VehicleId != Guid.Empty)
+        if (_record.VehicleId != Guid.Empty)
         {
-            _tire.InstalledOdometer = WrenchWise.GetSuggestedOdometer(_tire.VehicleId);
+            _record.InstalledOdometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId);
         }
     }
 
-    private string FindVehicle(Guid vehicleId) => WrenchWise.Vehicles.FirstOrDefault(v => v.Id == vehicleId)?.Nickname ?? "Unknown";
+    private async Task SaveRecordAsync()
+    {
+        if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_record.BrandModel))
+        {
+            Snackbar.Add("Please enter the brand and model.", Severity.Warning);
+            return;
+        }
+
+        _record.InstalledDate = DateOnly.FromDateTime(_installDate ?? DateTime.Today);
+        await WrenchWise.AddTireRecordAsync(_record);
+
+        Snackbar.Add("Tire set added successfully!", Severity.Success);
+
+        ResetRecord();
+        _showForm = false;
+    }
 
     private void HandleChanged() => InvokeAsync(StateHasChanged);
-
     public void Dispose() => WrenchWise.Changed -= HandleChanged;
 }

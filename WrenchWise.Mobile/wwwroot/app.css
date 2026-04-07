@@ -1,181 +1,72 @@
+/* ================================================================
+   WrenchWise – Global Styles (MudBlazor Compatible)
+   ================================================================ */
+
 :root {
-    color-scheme: dark;
-    --bg-main: #0b1117;
-    --bg-elev: #141c25;
-    --bg-soft: #1b2633;
-    --border: #2b3c4f;
-    --text-main: #e6edf3;
-    --text-muted: #9eb0c4;
-    --accent: #35c2a1;
-    --accent-strong: #1ea786;
-    --danger: #ff5f7a;
+    --mud-palette-primary: #35c2a1;
 }
 
 html, body {
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-main);
-    color: var(--text-main);
+    font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: #0b1117;
 }
 
-a, .btn-link {
-    color: #72c5ff;
+#app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
-.content {
-    padding-top: 1.1rem;
+/* ── Custom Component Overrides ────────────────────────── */
+
+/* Ensure content doesn't get hidden under the bottom nav */
+.mud-main-content {
+    padding-bottom: 80px !important;
+    overflow-y: auto;
+    height: 100vh;
 }
 
-h1, h2, h3, h4, h5, h6 {
-    color: var(--text-main);
+/* Push the MudAppBar down safely below the Android notch/status bar */
+.custom-safe-appbar {
+    padding-top: calc(env(safe-area-inset-top, 24px) + 20px) !important;
+    padding-bottom: 8px !important;
+    height: auto !important;
+    min-height: 80px !important;
+    display: flex;
+    align-items: flex-end !important;
 }
 
-p, small, .text-muted, label {
-    color: var(--text-muted) !important;
+/* Fix for MudAlert outlined colors in dark mode */
+.mud-alert-outlined-secondary {
+    border-color: rgba(234, 179, 8, 0.3) !important;
+    color: rgba(234, 179, 8, 0.9) !important;
 }
 
-.card {
-    background-color: var(--bg-elev);
-    border: 1px solid var(--border);
-    color: var(--text-main);
+/* Utility for clickable cards */
+.cursor-pointer {
+    cursor: pointer;
+    transition: transform 0.1s ease-in-out;
 }
 
-.form-control, .form-select {
-    background-color: var(--bg-soft);
-    border: 1px solid var(--border);
-    color: var(--text-main);
+.cursor-pointer:active {
+    transform: scale(0.98);
 }
 
-.form-control::placeholder {
-    color: #73879b;
-}
-
-.form-control:focus, .form-select:focus, .form-check-input:focus {
-    background-color: var(--bg-soft);
-    color: var(--text-main);
-    border-color: var(--accent);
-    box-shadow: 0 0 0 0.2rem rgba(53, 194, 161, 0.25);
-}
-
-.form-check-input {
-    background-color: #1e2a37;
-    border-color: var(--border);
-}
-
-.form-check-input:checked {
-    background-color: var(--accent);
-    border-color: var(--accent);
-}
-
-.btn-primary {
-    color: #08130f;
-    background-color: var(--accent);
-    border-color: var(--accent);
-}
-
-.btn-primary:hover {
-    color: #08130f;
-    background-color: var(--accent-strong);
-    border-color: var(--accent-strong);
-}
-
-.btn-outline-primary {
-    color: #86dec9;
-    border-color: #3d8c7a;
-}
-
-.btn-outline-primary:hover {
-    color: #08130f;
-    background-color: var(--accent);
-    border-color: var(--accent);
-}
-
-.btn-outline-secondary {
-    color: #b7c3d0;
-    border-color: #526679;
-}
-
-.btn-outline-danger {
-    color: #ff89a1;
-    border-color: #8f4253;
-}
-
-.alert {
-    background-color: #1a2430;
-    border-color: #34465a;
-    color: var(--text-main);
-}
-
-.alert-info {
-    background-color: #122535;
-    border-color: #285474;
-}
-
-.alert-warning {
-    background-color: #2c230f;
-    border-color: #6a4f1d;
-    color: #f4d69a;
-}
-
-.alert-danger {
-    background-color: #341722;
-    border-color: #7b3246;
-    color: #ffc0ce;
-}
-
-.display-6 {
-    color: #b8f7e6;
-}
-
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #39d68a;
-}
-
-.invalid {
-    outline: 1px solid #ff6f87;
-}
-
-.validation-message {
-    color: #ff90a2;
-}
-
+/* Blazor Error UI */
 #blazor-error-ui {
-    color-scheme: dark only;
     background: #3b1926;
     color: #ffd4dd;
     bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.35);
-    box-sizing: border-box;
     display: none;
     left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    padding: 0.6rem;
     position: fixed;
     width: 100%;
-    z-index: 1000;
+    z-index: 2000;
 }
 
-#blazor-error-ui .dismiss {
-    cursor: pointer;
-    position: absolute;
-    right: 0.75rem;
-    top: 0.5rem;
-}
-
-.status-bar-safe-area {
-    display: none;
-}
-
-@supports (-webkit-touch-callout: none) {
-    .status-bar-safe-area {
-        display: flex;
-        position: sticky;
-        top: 0;
-        height: env(safe-area-inset-top);
-        background-color: #0f1822;
-        width: 100%;
-        z-index: 1;
-    }
-
-    .flex-column, .navbar-brand {
-        padding-left: env(safe-area-inset-left);
-    }
-}

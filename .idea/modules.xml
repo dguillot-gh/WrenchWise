@@ -2,6 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/WrenchWise.Mobile/obj/Debug/Debug.iml" filepath="$PROJECT_DIR$/WrenchWise.Mobile/obj/Debug/Debug.iml" />
+      <module fileurl="file://$PROJECT_DIR$/WrenchWise.Mobile/obj/Release/Release.iml" filepath="$PROJECT_DIR$/WrenchWise.Mobile/obj/Release/Release.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/maintenance app - android studio.iml" filepath="$PROJECT_DIR$/.idea/maintenance app - android studio.iml" />
     </modules>
   </component>

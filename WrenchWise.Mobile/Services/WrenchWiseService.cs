@@ -844,60 +844,7 @@ public class WrenchWiseService
 
     private void SeedDemoData()
     {
-        var vehicle = new Vehicle
-        {
-            Nickname = "Daily Civic",
-            Make = "Honda",
-            Model = "Civic EX",
-            Year = 2018,
-            Vin = "2HGFC2F72JH000001",
-            CurrentOdometer = 84520
-        };
-
-        _offline.Store.Vehicles.Add(vehicle);
-        _offline.Store.MaintenanceRecords.Add(
-            new MaintenanceRecord
-            {
-                VehicleId = vehicle.Id,
-                ServiceType = "Synthetic oil + filter",
-                ServiceDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-40)),
-                Odometer = 83200,
-                Cost = 74.99m,
-                ShopName = "Main Street Lube"
-            });
-
-        _offline.Store.FuelRecords.Add(
-            new FuelRecord
-            {
-                VehicleId = vehicle.Id,
-                FillDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-7)),
-                Odometer = 84475,
-                Gallons = 10.8m,
-                TotalCost = 35.90m,
-                Station = "Costco",
-                FuelGrade = "Regular",
-                EthanolPercent = 10
-            });
-
-        _offline.Store.TireRecords.Add(
-            new TireRecord
-            {
-                VehicleId = vehicle.Id,
-                Position = "Front Left",
-                BrandModel = "Michelin Defender2",
-                InstalledDate = DateOnly.FromDateTime(DateTime.Today.AddMonths(-5)),
-                InstalledOdometer = 79000,
-                PurchaseCost = 140m
-            });
-
-        _offline.Store.ServiceReminders.Add(
-            new ServiceReminder
-            {
-                VehicleId = vehicle.Id,
-                Title = "Brake fluid check",
-                DueDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
-                Notes = "Inspect color and moisture."
-            });
+        // Production: start with a clean slate
     }
 
     private void EnsureActiveVehicle()

@@ -1,59 +1,115 @@
 @page "/"
 @implements IDisposable
 @inject WrenchWiseService WrenchWise
+@inject NavigationManager Nav
 
 <PageTitle>Dashboard</PageTitle>
 
-<h1>WrenchWise Dashboard</h1>
-<p>Offline-first logging with queued sync to your self-hosted API.</p>
+<MudText Typo="Typo.h5" GutterBottom="true" Class="mt-2 mb-1 fw-bold">My Garage</MudText>
+<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Your vehicles at a glance.</MudText>
 
 @if (!_ready)
 {
-    <p>Loading garage...</p>
+    <MudGrid Spacing="2">
+        @for (int i = 0; i < 4; i++)
+        {
+            <MudItem xs="6" sm="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" />
+            </MudItem>
+        }
+    </MudGrid>
 }
 else if (WrenchWise.Vehicles.Count == 0)
 {
-    <div class="alert alert-info">No vehicles yet. Add one in the Vehicles tab.</div>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+        No vehicles yet. Add one in the <MudLink href="vehicles" Color="Color.Inherit"><b>Vehicles tab</b></MudLink>.
+    </MudAlert>
 }
 else
 {
-    <div class="row g-3 mb-3">
-        <div class="col-md-3">
-            <div class="card p-3">
-                <div class="text-muted">Vehicles</div>
-                <div class="display-6">@WrenchWise.Vehicles.Count</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card p-3">
-                <div class="text-muted">Maintenance Logs</div>
-                <div class="display-6">@WrenchWise.MaintenanceRecords.Count</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card p-3">
-                <div class="text-muted">Fuel Entries</div>
-                <div class="display-6">@WrenchWise.FuelRecords.Count</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card p-3">
-                <div class="text-muted">Pending Sync</div>
-                <div class="display-6">@WrenchWise.PendingSyncCount</div>
-            </div>
-        </div>
-    </div>
+    <MudGrid Spacing="3" Class="mb-6">
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-3 d-flex flex-column align-center justify-center border-l-4 border-primary">
+                <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Color="Color.Primary" Size="Size.Small" Class="mb-1" />
+                <MudText Typo="Typo.h6" Color="Color.Primary"><b>@WrenchWise.Vehicles.Count</b></MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 uppercase font-weight-bold" Style="font-size: 0.65rem;">Vehicles</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-3 d-flex flex-column align-center justify-center border-l-4 border-warning">
+                <MudIcon Icon="@Icons.Material.Filled.Build" Color="Color.Warning" Size="Size.Small" Class="mb-1" />
+                <MudText Typo="Typo.h6" Color="Color.Warning"><b>@WrenchWise.MaintenanceRecords.Count</b></MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 uppercase font-weight-bold" Style="font-size: 0.65rem;">Services</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-3 d-flex flex-column align-center justify-center border-l-4 border-info">
+                <MudIcon Icon="@Icons.Material.Filled.LocalGasStation" Color="Color.Info" Size="Size.Small" Class="mb-1" />
+                <MudText Typo="Typo.h6" Color="Color.Info"><b>@WrenchWise.FuelRecords.Count</b></MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 uppercase font-weight-bold" Style="font-size: 0.65rem;">Fuel Logs</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="2" Class="pa-3 d-flex flex-column align-center justify-center border-l-4 border-error">
+                <MudIcon Icon="@Icons.Material.Filled.Sync" Color="Color.Error" Size="Size.Small" Class="mb-1" />
+                <MudText Typo="Typo.h6" Color="Color.Error"><b>@WrenchWise.PendingSyncCount</b></MudText>
+                <MudText Typo="Typo.caption" Class="opacity-60 uppercase font-weight-bold" Style="font-size: 0.65rem;">Pending</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.subtitle1" Class="fw-bold mb-3">Active Vehicles</MudText>
 
     @foreach (var vehicle in WrenchWise.Vehicles.OrderByDescending(x => x.UpdatedUtc))
     {
-        <div class="card p-3 mb-3">
-            <h4>@vehicle.Nickname (@vehicle.Year @vehicle.Make @vehicle.Model)</h4>
-            <div>Odometer: @vehicle.CurrentOdometer miles</div>
-            <div>Total spend: @WrenchWise.GetTotalSpent(vehicle.Id).ToString("C")</div>
-            <div>Average MPG: @WrenchWise.GetAverageMpg(vehicle.Id)</div>
-        </div>
+        <MudCard Elevation="2" Class="mb-4 rounded-lg overflow-hidden border-solid border-1 mud-border-lines-default">
+            <MudCardHeader Class="pb-1">
+                <CardHeaderAvatar>
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">@vehicle.Nickname[0]</MudAvatar>
+                </CardHeaderAvatar>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.body2"><b>@vehicle.Nickname</b></MudText>
+                    <MudText Typo="Typo.caption" Class="opacity-60">@vehicle.Year @vehicle.Make @vehicle.Model</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Class="py-0 px-4">
+                <div class="d-flex justify-space-between py-2 border-b-1 mud-border-lines-default opacity-80">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Speed" Size="Size.Small" />
+                        <MudText Typo="Typo.body2">Odometer</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2"><b>@vehicle.CurrentOdometer miles</b></MudText>
+                </div>
+                <div class="d-flex justify-space-between py-2 border-b-1 mud-border-lines-default opacity-80">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Small" />
+                        <MudText Typo="Typo.body2">Total Spending</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2" Color="Color.Success"><b>@WrenchWise.GetTotalSpent(vehicle.Id).ToString("C")</b></MudText>
+                </div>
+                <div class="d-flex justify-space-between py-2 opacity-80">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.ShowChart" Size="Size.Small" />
+                        <MudText Typo="Typo.body2">Average MPG</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2"><b>@WrenchWise.GetAverageMpg(vehicle.Id)</b></MudText>
+                </div>
+            </MudCardContent>
+            <MudCardActions Class="px-4 pb-2">
+                <MudButton OnClick="@(() => GoToDetails(vehicle.Id))" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Launch" Class="rounded-pill mt-1">Details</MudButton>
+            </MudCardActions>
+        </MudCard>
     }
 }
+
+<style>
+    .border-l-4 { border-left-width: 4px !important; border-left-style: solid !important; }
+    .border-primary { border-left-color: var(--mud-palette-primary) !important; }
+    .border-warning { border-left-color: var(--mud-palette-warning) !important; }
+    .border-info { border-left-color: var(--mud-palette-info) !important; }
+    .border-error { border-left-color: var(--mud-palette-error) !important; }
+    .uppercase { text-transform: uppercase; }
+</style>
 
 @code {
     private bool _ready;
@@ -68,6 +124,12 @@ else
     private void HandleChanged()
     {
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task GoToDetails(Guid vehicleId)
+    {
+        await WrenchWise.SetActiveVehicleAsync(vehicleId);
+        Nav.NavigateTo("/timeline");
     }
 
     public void Dispose()
