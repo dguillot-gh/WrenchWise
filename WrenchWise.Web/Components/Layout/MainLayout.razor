@@ -1,23 +1,85 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Surface" Class="px-4">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" />
+        <MudText Typo="Typo.h6" Class="fw-bold ms-2" Color="Color.Primary">WrenchWise</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-40 ms-1 d-none d-sm-block">Fleet Dashboard</MudText>
+        <MudSpacer />
+        <MudTooltip Text="Refresh data">
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" OnClick="@RefreshAsync" />
+        </MudTooltip>
+    </MudAppBar>
 
-        <article class="content px-4">
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" Variant="DrawerVariant.Responsive"
+               ClipMode="DrawerClipMode.Always" Color="Color.Surface">
+        <MudDrawerHeader Class="py-5 px-4">
+            <div class="d-flex align-center gap-3">
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">W</MudAvatar>
+                <div>
+                    <MudText Typo="Typo.subtitle2" Class="fw-bold">WrenchWise</MudText>
+                    <MudText Typo="Typo.caption" Class="opacity-50">Fleet Management</MudText>
+                </div>
+            </div>
+        </MudDrawerHeader>
+        <MudDivider />
+        <MudNavMenu Class="pa-2">
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+                Dashboard
+            </MudNavLink>
+            <MudNavLink Href="/fleet" Icon="@Icons.Material.Filled.DirectionsCar">
+                Fleet
+            </MudNavLink>
+            <MudNavLink Href="/maintenance" Icon="@Icons.Material.Filled.Build">
+                Maintenance
+            </MudNavLink>
+            <MudNavLink Href="/fuel" Icon="@Icons.Material.Filled.LocalGasStation">
+                Fuel Log
+            </MudNavLink>
+            <MudNavLink Href="/reminders" Icon="@Icons.Material.Filled.NotificationsActive">
+                Reminders
+            </MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-6 px-4 px-sm-8">
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+@code {
+    private bool _drawerOpen = true;
+
+    [Inject] private WebDataService Data { get; set; } = default!;
+
+    private async Task RefreshAsync()
+    {
+        await Data.RefreshAsync();
+    }
+
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#35c2a1",
+            Secondary = "#1ea786",
+            Background = "#0b1117",
+            Surface = "#141c25",
+            AppbarBackground = "#141c25",
+            DrawerBackground = "#141c25",
+            TextPrimary = "#e6edf3",
+            TextSecondary = "#9eb0c4",
+            ActionDefault = "#9eb0c4",
+            ActionDisabled = "#1e2e3e",
+            Divider = "#1e2e3e"
+        }
+    };
+}

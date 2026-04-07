@@ -1,0 +1,152 @@
+@page "/reminders"
+@inject WebDataService Data
+@implements IDisposable
+
+<PageTitle>Reminders — WrenchWise</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mb-1">Service Reminders</MudText>
+<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Stay ahead of your maintenance schedule.</MudText>
+
+@if (!Data.IsLoaded)
+{
+    <MudGrid Spacing="3">
+        @for (int i = 0; i < 4; i++)
+        {
+            <MudItem xs="12" sm="6">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="rounded-xl" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    var store = Data.Store!;
+    var overdue  = store.ServiceReminders.Where(r => !r.IsCompleted && Data.IsReminderOverdue(r)).ToList();
+    var due      = store.ServiceReminders.Where(r => !r.IsCompleted && Data.IsReminderDue(r) && !Data.IsReminderOverdue(r)).ToList();
+    var upcoming = store.ServiceReminders.Where(r => !r.IsCompleted && !Data.IsReminderDue(r)).ToList();
+    var completed = store.ServiceReminders.Where(r => r.IsCompleted).ToList();
+
+    @* Overdue *@
+    @if (overdue.Any())
+    {
+        <MudText Typo="Typo.subtitle1" Class="fw-bold mb-2 d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" />
+            Overdue (@overdue.Count)
+        </MudText>
+        <MudGrid Spacing="3" Class="mb-6">
+            @foreach (var r in overdue)
+            {
+                @ReminderCard(r, Color.Error, store)
+            }
+        </MudGrid>
+    }
+
+    @* Due Soon *@
+    @if (due.Any())
+    {
+        <MudText Typo="Typo.subtitle1" Class="fw-bold mb-2 d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+            Due Soon (@due.Count)
+        </MudText>
+        <MudGrid Spacing="3" Class="mb-6">
+            @foreach (var r in due)
+            {
+                @ReminderCard(r, Color.Warning, store)
+            }
+        </MudGrid>
+    }
+
+    @* Upcoming *@
+    @if (upcoming.Any())
+    {
+        <MudText Typo="Typo.subtitle1" Class="fw-bold mb-2 d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Schedule" Color="Color.Info" />
+            Upcoming (@upcoming.Count)
+        </MudText>
+        <MudGrid Spacing="3" Class="mb-6">
+            @foreach (var r in upcoming)
+            {
+                @ReminderCard(r, Color.Info, store)
+            }
+        </MudGrid>
+    }
+
+    @* Completed *@
+    @if (completed.Any())
+    {
+        <MudExpansionPanels Elevation="1" Class="rounded-xl">
+            <MudExpansionPanel Icon="@Icons.Material.Filled.CheckCircle" Text="@($"Completed ({completed.Count})")">
+                <MudGrid Spacing="3">
+                    @foreach (var r in completed)
+                    {
+                        @ReminderCard(r, Color.Success, store)
+                    }
+                </MudGrid>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
+
+    @if (!store.ServiceReminders.Any())
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
+            <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Style="font-size:4rem;" />
+            <MudText Typo="Typo.h6">No reminders set</MudText>
+            <MudText Typo="Typo.body2">Add reminders from the WrenchWise mobile app.</MudText>
+        </MudStack>
+    }
+}
+
+@using WrenchWise.Shared.Models
+
+@code {
+    private RenderFragment ReminderCard(ServiceReminder r, Color color, WrenchWiseStore store) => __builder =>
+    {
+        var vehicle = store.Vehicles.FirstOrDefault(v => v.Id == r.VehicleId);
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="rounded-xl" Style="@($"border-left: 4px solid var(--mud-palette-{color.ToString().ToLower()})")">
+                <MudCardContent Class="pa-4">
+                    <div class="d-flex justify-space-between align-start mb-2">
+                        <MudText Typo="Typo.subtitle2" Class="fw-bold">@r.Title</MudText>
+                        <MudChip T="string" Color="color" Size="Size.Small" Variant="Variant.Filled">
+                            @(r.IsCompleted ? "Done" : (Data.IsReminderOverdue(r) ? "Overdue" : (Data.IsReminderDue(r) ? "Due" : "Upcoming")))
+                        </MudChip>
+                    </div>
+                    @if (vehicle != null)
+                    {
+                        <div class="d-flex align-center gap-1 mb-2 opacity-70">
+                            <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Size="Size.Small" />
+                            <MudText Typo="Typo.caption">@vehicle.Nickname — @vehicle.Year @vehicle.Make @vehicle.Model</MudText>
+                        </div>
+                    }
+                    <MudDivider Class="my-2" />
+                    @if (r.DueDate.HasValue)
+                    {
+                        <div class="d-flex align-center gap-2 mt-1">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Color="color" />
+                            <MudText Typo="Typo.body2">Due @r.DueDate.Value.ToString("MMM d, yyyy")</MudText>
+                        </div>
+                    }
+                    @if (r.DueOdometer.HasValue)
+                    {
+                        <div class="d-flex align-center gap-2 mt-1">
+                            <MudIcon Icon="@Icons.Material.Filled.Speed" Size="Size.Small" Color="color" />
+                            <MudText Typo="Typo.body2">Due at @r.DueOdometer.Value.ToString("N0") mi</MudText>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(r.Notes))
+                    {
+                        <MudText Typo="Typo.caption" Class="opacity-50 mt-2">@r.Notes</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

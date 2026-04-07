@@ -11,6 +11,11 @@ services:
     ports:
       - "15432:5432"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wrenchwise -d wrenchwise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -18,12 +23,27 @@ services:
       dockerfile: WrenchWise.Backend/Dockerfile
     container_name: wrenchwise-api
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__WrenchWiseDb: Host=postgres;Port=5432;Database=wrenchwise;Username=wrenchwise;Password=wrenchwisepw
     ports:
       - "18080:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: WrenchWise.Web/Dockerfile
+    container_name: wrenchwise-web
+    depends_on:
+      - api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      BackendApiUrl: http://api:8080
+    ports:
+      - "18081:8080"
     restart: unless-stopped
 
 volumes:
