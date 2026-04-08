@@ -78,10 +78,10 @@ else
 
     @foreach (var vehicle in WrenchWise.Vehicles.OrderByDescending(x => x.UpdatedUtc))
     {
-        <MudCard Elevation="2" Class="mb-4 rounded-lg overflow-hidden border-solid border-1 mud-border-lines-default">
+        <MudCard Elevation="2" Class="mb-4 rounded-lg overflow-hidden border-solid border-1 mud-border-lines-default" Style="@($"cursor: pointer; border-left-width: 4px; border-left-color: {vehicle.ColorHex} !important;")" @onclick="@(() => GoToDetails(vehicle.Id))">
             <MudCardHeader Class="pb-1">
                 <CardHeaderAvatar>
-                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">@vehicle.Nickname[0]</MudAvatar>
+                    <MudAvatar Variant="Variant.Filled" Size="Size.Medium" Style="@($"background-color: {vehicle.ColorHex} !important; color: white !important;")">@vehicle.Nickname[0]</MudAvatar>
                 </CardHeaderAvatar>
                 <CardHeaderContent>
                     <MudText Typo="Typo.body2"><b>@vehicle.Nickname</b></MudText>
@@ -101,7 +101,7 @@ else
                         <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Small" />
                         <MudText Typo="Typo.body2">Total Spending</MudText>
                     </div>
-                    <MudText Typo="Typo.body2" Color="Color.Success"><b>@WrenchWise.GetTotalSpent(vehicle.Id).ToString("C")</b></MudText>
+                    <MudText Typo="Typo.body2"><b>@WrenchWise.GetTotalSpent(vehicle.Id).ToString("C")</b></MudText>
                 </div>
                 <div class="d-flex justify-space-between py-2 opacity-80">
                     <div class="d-flex align-center gap-2">
@@ -113,9 +113,27 @@ else
 
                 @{
                     var dueReminders = WrenchWise.ServiceReminders.Where(r => r.VehicleId == vehicle.Id && WrenchWise.IsReminderDue(r)).ToList();
-                    if (dueReminders.Any())
+                    var expiredDocs = WrenchWise.VehicleDocuments.Where(d => d.VehicleId == vehicle.Id && WrenchWise.IsDocumentExpired(d)).ToList();
+                    var expiringDocs = WrenchWise.VehicleDocuments.Where(d => d.VehicleId == vehicle.Id && WrenchWise.IsDocumentExpiring(d)).ToList();
+
+                    if (expiredDocs.Any())
                     {
                         <div class="d-flex align-center gap-2 py-2 mt-1 px-3 rounded-lg mud-palette-error opacity-80" style="background-color: var(--mud-palette-error-hover);">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Small" />
+                            <MudText Typo="Typo.caption" Color="Color.Error"><b>Expired Documents:</b> @string.Join(", ", expiredDocs.Select(d => d.DocumentType))</MudText>
+                        </div>
+                    }
+                    else if (expiringDocs.Any())
+                    {
+                        <div class="d-flex align-center gap-2 py-2 mt-1 px-3 rounded-lg mud-palette-warning opacity-80" style="background-color: var(--mud-palette-warning-hover);">
+                            <MudIcon Icon="@Icons.Material.Filled.Description" Color="Color.Warning" Size="Size.Small" />
+                            <MudText Typo="Typo.caption" Color="Color.Warning"><b>Expiring Documents:</b> @string.Join(", ", expiringDocs.Select(d => d.DocumentType))</MudText>
+                        </div>
+                    }
+
+                    if (dueReminders.Any())
+                    {
+                        <div @onclick="@(() => Nav.NavigateTo("/reminders"))" @onclick:stopPropagation="true" class="d-flex align-center gap-2 py-2 mt-1 px-3 rounded-lg mud-palette-error opacity-80" style="background-color: var(--mud-palette-error-hover); cursor: pointer;">
                             <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Small" />
                             <MudText Typo="Typo.caption" Color="Color.Error"><b>@dueReminders.Count Service Due:</b> @string.Join(", ", dueReminders.Select(r => r.Title))</MudText>
                         </div>
@@ -124,11 +142,24 @@ else
             </MudCardContent>
             <MudCardActions Class="px-4 pb-2 gap-2">
                 <MudButton OnClick="@(() => GoToDetails(vehicle.Id))" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Launch" Class="rounded-pill mt-1">Details</MudButton>
-                <MudButton OnClick="@(() => ExportVehicleHistoryAsync(vehicle.Id))" Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small" StartIcon="@Icons.Material.Filled.Download" Class="rounded-pill mt-1">Export</MudButton>
+                <div @onclick:stopPropagation="true" class="d-inline-block">
+                    <MudButton OnClick="@(() => ExportVehicleHistoryAsync(vehicle.Id))" Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small" StartIcon="@Icons.Material.Filled.Download" Class="rounded-pill mt-1">Export</MudButton>
+                </div>
             </MudCardActions>
         </MudCard>
     }
 }
+
+<MudMenu ActivationEvent="MouseEvent.LeftClick" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.BottomRight" ListClass="py-2" PopoverClass="mb-4 mr-4">
+    <ActivatorContent>
+        <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="mud-elevation-4" Style="position: fixed; bottom: 24px; right: 24px; z-index: 100;" />
+    </ActivatorContent>
+    <ChildContent>
+        <MudMenuItem Href="/fuel" Icon="@Icons.Material.Filled.LocalGasStation" IconColor="Color.Info" Class="px-4 py-2">Log Fuel</MudMenuItem>
+        <MudMenuItem Href="/maintenance" Icon="@Icons.Material.Filled.Build" IconColor="Color.Warning" Class="px-4 py-2">Log Service</MudMenuItem>
+        <MudMenuItem Href="/tires" Icon="@Icons.Material.Filled.Settings" IconColor="Color.Primary" Class="px-4 py-2">Add Tires</MudMenuItem>
+    </ChildContent>
+</MudMenu>
 
 <style>
     .border-l-4 { border-left-width: 4px !important; border-left-style: solid !important; }

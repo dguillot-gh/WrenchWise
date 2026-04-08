@@ -1,0 +1,229 @@
+@page "/projects"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+@inject NavigationManager Nav
+
+<PageTitle>Projects</PageTitle>
+
+@inject ISnackbar Snackbar
+<div class="d-flex align-center justify-space-between mb-4 mt-2">
+    <MudText Typo="Typo.h5" Class="fw-bold">Projects</MudText>
+    @if (WrenchWise.Vehicles.Any())
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" Class="rounded-pill" OnClick="ToggleForm">New</MudButton>
+    }
+</div>
+
+<MudCollapse Expanded="_showForm">
+    <MudCard Elevation="4" Class="mb-6 border-l-4 border-warning">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@(_isEditing ? "Edit Project" : "New Project")</MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" />
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent>
+            <EditForm Model="_model" OnValidSubmit="SaveProjectAsync">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="2">
+                    <MudItem xs="12">
+                        <MudSelect T="Guid" Label="Vehicle" @bind-Value="_model.VehicleId" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var v in WrenchWise.Vehicles)
+                            {
+                                <MudSelectItem Value="@v.Id">@v.Nickname</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField Label="Project Title" @bind-Value="_model.Title" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField Label="Description" @bind-Value="_model.Description" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField T="decimal" Label="Estimated Cost" @bind-Value="_model.EstimatedCost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField T="decimal" Label="Actual Cost" @bind-Value="_model.ActualCost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" Label="Status" @bind-Value="_model.Status" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="@("Planning")">Planning</MudSelectItem>
+                            <MudSelectItem Value="@("InProgress")">In Progress</MudSelectItem>
+                            <MudSelectItem Value="@("Completed")">Completed</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Label="Target Date" @bind-Date="_targetDate" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" Class="d-flex justify-end gap-2 mt-2">
+                        @if (_isEditing)
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => WrenchWise.DeleteProjectAsync(_model.Id)" Class="mr-auto">Delete</MudButton>
+                        }
+                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="ToggleForm">Cancel</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudCardContent>
+    </MudCard>
+</MudCollapse>
+
+<MudText Typo="Typo.body2" Class="opacity-60 mb-6">Plan and budget upcoming major work for your vehicles.</MudText>
+
+@if (!WrenchWise.VehicleProjects.Any())
+{
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.Engineering" Size="Size.Large" Style="font-size: 5rem;" />
+        <MudText Typo="Typo.h6">No Projects</MudText>
+        <MudText Typo="Typo.body2">You haven't added any projects yet.</MudText>
+    </MudStack>
+}
+else
+{
+    <MudStack Spacing="4" Class="pb-16">
+        @foreach (var p in WrenchWise.VehicleProjects.OrderByDescending(x => x.UpdatedUtc))
+        {
+            var veh = WrenchWise.Vehicles.FirstOrDefault(v => v.Id == p.VehicleId);
+            
+            <MudCard Elevation="2" Class="rounded-xl">
+                <MudCardHeader Class="pb-1">
+                    <CardHeaderContent>
+                        <div class="d-flex justify-space-between align-center">
+                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@p.Title</MudText>
+                            <MudChip T="string" Color="GetStatusColor(p.Status)" Size="Size.Small" Variant="Variant.Text">@p.Status</MudChip>
+                        </div>
+                        <div class="d-flex justify-space-between align-center">
+                            <MudText Typo="Typo.caption" Class="opacity-60">@(veh?.Nickname ?? "Unknown")</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditProject(p)" />
+                        </div>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="pt-0">
+                    <MudText Typo="Typo.body2" Class="mb-3 opacity-80">@p.Description</MudText>
+                    
+                    <div class="d-flex justify-space-between pb-1 border-b-1 border-solid" style="border-color: var(--mud-palette-divider);">
+                        <MudText Typo="Typo.caption" Class="opacity-60">Estimated</MudText>
+                        <MudText Typo="Typo.body2" Class="fw-bold text-warning">@p.EstimatedCost.ToString("C0")</MudText>
+                    </div>
+                    <div class="d-flex justify-space-between pt-1">
+                        <MudText Typo="Typo.caption" Class="opacity-60">Actual</MudText>
+                        <MudText Typo="Typo.body2" Class="@($"fw-bold {(p.ActualCost > p.EstimatedCost ? "text-error" : "text-success")}")">
+                            @(p.ActualCost > 0 ? p.ActualCost.ToString("C0") : "—")
+                        </MudText>
+                    </div>
+
+                    @if (p.TargetDate.HasValue)
+                    {
+                        <div class="d-flex justify-space-between align-center mt-4 border-t-1 border-solid pt-2" style="border-color: var(--mud-palette-divider);">
+                            <div class="d-flex align-center gap-2 opacity-70">
+                                <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" />
+                                <MudText Typo="Typo.caption">Target: @p.TargetDate.Value.ToString("d")</MudText>
+                            </div>
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudStack>
+}
+
+<style>
+    .border-l-4 { border-left-width: 4px !important; border-left-style: solid !important; }
+    .border-warning { border-left-color: var(--mud-palette-warning) !important; }
+</style>
+
+@code {
+    private bool _showForm = false;
+    private bool _isEditing = false;
+    private VehicleProject _model = new();
+    private DateTime? _targetDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetForm();
+    }
+
+    private void ToggleForm()
+    {
+        _showForm = !_showForm;
+        if (!_showForm)
+        {
+            ResetForm();
+        }
+    }
+
+    private void ResetForm()
+    {
+        _model = new VehicleProject
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty ? WrenchWise.ActiveVehicleId : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+        };
+        _targetDate = null;
+        _isEditing = false;
+    }
+
+    private void EditProject(VehicleProject p)
+    {
+        _model = new VehicleProject
+        {
+            Id = p.Id,
+            VehicleId = p.VehicleId,
+            Title = p.Title,
+            Description = p.Description,
+            EstimatedCost = p.EstimatedCost,
+            ActualCost = p.ActualCost,
+            TargetDate = p.TargetDate,
+            Status = p.Status
+        };
+        _targetDate = p.TargetDate?.ToDateTime(TimeOnly.MinValue);
+        _isEditing = true;
+        _showForm = true;
+    }
+
+    private async Task SaveProjectAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Title)) return;
+
+        _model.TargetDate = _targetDate.HasValue ? DateOnly.FromDateTime(_targetDate.Value) : null;
+
+        if (_isEditing)
+        {
+            await WrenchWise.UpdateProjectAsync(_model);
+            Snackbar.Add("Project updated", Severity.Success);
+        }
+        else
+        {
+            await WrenchWise.AddProjectAsync(_model);
+            Snackbar.Add("Project saved", Severity.Success);
+        }
+
+        _showForm = false;
+        ResetForm();
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Planning" => Color.Warning,
+        "InProgress" => Color.Info,
+        "Completed" => Color.Success,
+        _ => Color.Default
+    };
+
+    private void HandleChanged()
+    {
+        if (_isEditing && WrenchWise.VehicleProjects.All(p => p.Id != _model.Id))
+        {
+            ToggleForm(); // Close form if current project was deleted
+        }
+        InvokeAsync(StateHasChanged);
+    }
+    
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

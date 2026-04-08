@@ -10,5 +10,6 @@ public class Vehicle
     public string Vin { get; set; } = string.Empty;
     public int CurrentOdometer { get; set; }
     public string Notes { get; set; } = string.Empty;
+    public string ColorHex { get; set; } = "#594AE2";
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }

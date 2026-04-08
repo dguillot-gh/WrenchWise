@@ -11,5 +11,9 @@ public enum SyncOperationType
     UpsertTire,
     DeleteTire,
     UpsertReminder,
-    DeleteReminder
+    DeleteReminder,
+    UpsertProject,
+    DeleteProject,
+    UpsertDocument,
+    DeleteDocument
 }

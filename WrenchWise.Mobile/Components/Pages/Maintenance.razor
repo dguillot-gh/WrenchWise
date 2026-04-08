@@ -32,7 +32,7 @@ else
                     <MudAvatar Color="Color.Warning" Variant="Variant.Filled"><MudIcon Icon="@Icons.Material.Filled.Build" /></MudAvatar>
                 </CardHeaderAvatar>
                 <CardHeaderContent>
-                    <MudText Typo="Typo.h6">New Service Record</MudText>
+                    <MudText Typo="Typo.h6">@(_isEditing ? "Edit Service Record" : "New Service Record")</MudText>
                 </CardHeaderContent>
                 <CardHeaderActions>
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" />
@@ -82,7 +82,20 @@ else
                                 <MudTextField Label="Shop / Mechanic" @bind-Value="_record.ShopName" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12">
-                                <MudTextField Label="Notes / Parts" @bind-Value="_record.Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" />
+                                <MudTextField Label="Notes" @bind-Value="_record.Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudText Typo="Typo.subtitle2" Class="mb-2 opacity-80">Parts Used</MudText>
+                                @foreach(var part in _record.Parts)
+                                {
+                                    <div class="d-flex align-center gap-2 mb-2">
+                                        <MudTextField @bind-Value="part.PartName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                        <MudTextField @bind-Value="part.PartNumber" Label="Number" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                        <MudNumericField T="decimal" @bind-Value="part.Cost" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 80px;" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => _record.Parts.Remove(part)" />
+                                    </div>
+                                }
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="() => _record.Parts.Add(new ServicePart())" Class="mt-1 border-dashed">Add Part</MudButton>
                             </MudItem>
                         }
 
@@ -99,6 +112,14 @@ else
     <MudExpansionPanels Class="mb-4">
         <MudExpansionPanel Text="Filter Records" Icon="@Icons.Material.Filled.FilterList">
             <MudGrid Spacing="2">
+                <MudItem xs="12" sm="12">
+                    <MudSelect T="Guid?" Label="Filter by Vehicle" @bind-Value="_filterVehicleId" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var vehicle in WrenchWise.Vehicles)
+                        {
+                            <MudSelectItem T="Guid?" Value="@vehicle.Id">@vehicle.Nickname</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
                 <MudItem xs="12" sm="4">
                     <MudTextField T="string" Label="Search" @bind-Value="_searchText" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
                 </MudItem>
@@ -140,6 +161,7 @@ else
                         </CardHeaderContent>
                         <CardHeaderActions>
                             <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight">
+                                <MudMenuItem Icon="@Icons.Material.Filled.Edit" OnClick="() => EditRecord(record)">Edit</MudMenuItem>
                                 <MudMenuItem Icon="@Icons.Material.Filled.PhotoCamera" OnClick="() => AttachReceiptAsync(record.Id)">Attach Receipt</MudMenuItem>
                                 <MudDivider />
                                 <MudMenuItem Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => WrenchWise.DeleteMaintenanceRecordAsync(record.Id)">Delete</MudMenuItem>
@@ -159,8 +181,28 @@ else
                             </MudAlert>
                         }
 
+                        @if (record.Parts != null && record.Parts.Any())
+                        {
+                            <div class="mt-2 mb-3">
+                                <MudText Typo="Typo.caption" Class="opacity-70 d-block mb-1">PARTS</MudText>
+                                @foreach(var part in record.Parts)
+                                {
+                                    <div class="d-flex justify-space-between align-center border-b-1 pb-1 mb-1" style="border-color: var(--mud-palette-divider);">
+                                        <div>
+                                            <MudText Typo="Typo.body2">@part.PartName</MudText>
+                                            @if(!string.IsNullOrWhiteSpace(part.PartNumber)){ <MudText Typo="Typo.caption" Class="opacity-60">#@part.PartNumber</MudText> }
+                                        </div>
+                                        @if(part.Cost > 0){ <MudText Typo="Typo.caption" Class="fw-bold">@part.Cost.ToString("C2")</MudText> }
+                                    </div>
+                                }
+                            </div>
+                        }
+
                         <div class="d-flex justify-space-between align-center mt-2">
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Icon="@Icons.Material.Filled.DirectionsCar">
+                            @{
+                                var vColorMaint = WrenchWise.Vehicles.FirstOrDefault(v => v.Id == record.VehicleId)?.ColorHex ?? "var(--mud-palette-primary)";
+                            }
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.DirectionsCar" Style="@($"color: {vColorMaint}; border-color: {vColorMaint};")">
                                 @FindVehicle(record.VehicleId)
                             </MudChip>
                             @if (!string.IsNullOrWhiteSpace(record.ShopName))
@@ -189,8 +231,10 @@ else
     private string _searchText = string.Empty;
     private decimal? _minCost;
     private decimal? _maxCost;
+    private Guid? _filterVehicleId;
     private bool _showForm = false;
     private bool _showAdvanced = false;
+    private bool _isEditing = false;
 
     private readonly string[] _presets = 
     { 
@@ -213,6 +257,11 @@ else
                     (x.ServiceType?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
                     (x.ShopName?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
                     (x.Notes?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            if (_filterVehicleId.HasValue)
+            {
+                query = query.Where(x => x.VehicleId == _filterVehicleId.Value);
             }
 
             if (_minCost.HasValue)
@@ -250,7 +299,11 @@ else
     private void ToggleForm()
     {
         _showForm = !_showForm;
-        if (!_showForm) ResetRecord();
+        if (!_showForm) 
+        {
+            ResetRecord();
+            _isEditing = false;
+        }
     }
 
     private void OnPresetSelected(string val)
@@ -263,6 +316,7 @@ else
         _searchText = string.Empty;
         _minCost = null;
         _maxCost = null;
+        _filterVehicleId = null;
     }
 
     private async Task SaveRecordAsync()
@@ -273,10 +327,41 @@ else
         }
 
         _record.ServiceDate = DateOnly.FromDateTime(_serviceDate ?? DateTime.Today);
-        await WrenchWise.AddMaintenanceRecordAsync(_record);
-        Snackbar.Add($"Added {_record.ServiceType} for {FindVehicle(_record.VehicleId)}", Severity.Success);
+        
+        if (_isEditing)
+        {
+            await WrenchWise.UpdateMaintenanceRecordAsync(_record);
+            Snackbar.Add($"Updated {_record.ServiceType} for {FindVehicle(_record.VehicleId)}", Severity.Success);
+        }
+        else
+        {
+            await WrenchWise.AddMaintenanceRecordAsync(_record);
+            Snackbar.Add($"Added {_record.ServiceType} for {FindVehicle(_record.VehicleId)}", Severity.Success);
+        }
+        
         ResetRecord();
         _showForm = false;
+        _isEditing = false;
+    }
+    
+    private void EditRecord(MaintenanceRecord record)
+    {
+        _record = new MaintenanceRecord
+        {
+            Id = record.Id,
+            VehicleId = record.VehicleId,
+            ServiceDate = record.ServiceDate,
+            Odometer = record.Odometer,
+            Cost = record.Cost,
+            ServiceType = record.ServiceType,
+            ShopName = record.ShopName,
+            Notes = record.Notes,
+            Parts = record.Parts?.Select(p => new ServicePart { Id = p.Id, PartName = p.PartName, PartNumber = p.PartNumber, Cost = p.Cost }).ToList() ?? new()
+        };
+        _serviceDate = record.ServiceDate.ToDateTime(TimeOnly.MinValue);
+        _isEditing = true;
+        _showForm = true;
+        _showAdvanced = !string.IsNullOrWhiteSpace(record.ShopName) || !string.IsNullOrWhiteSpace(record.Notes) || (record.Parts?.Any() == true);
     }
     
     private void ResetRecord()

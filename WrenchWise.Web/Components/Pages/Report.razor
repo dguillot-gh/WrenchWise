@@ -1,0 +1,233 @@
+@page "/report"
+@inject WebDataService Data
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Vehicle Summary Report</PageTitle>
+
+<div class="d-print-none mb-6 d-flex justify-space-between align-center">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">Printable Vehicle Report</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60">Generate a clean, ink-friendly summary for your records or potential buyers.</MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintAsync">Print to PDF</MudButton>
+</div>
+
+@if (!Data.IsLoaded)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="d-print-none" />
+}
+else
+{
+    <div class="print-container">
+        @foreach (var v in Data.Store!.Vehicles)
+        {
+            <div class="vehicle-report-page">
+                <!-- Report Header -->
+                <div class="report-header">
+                    <h2>@v.Year @v.Make @v.Model</h2>
+                    <p>Current Odometer: <strong>@v.CurrentOdometer.ToString("N0") mi</strong> &nbsp;|&nbsp; Nickname: <strong>@v.Nickname</strong></p>
+                </div>
+
+                <div class="report-section">
+                    <h3>Major Projects</h3>
+                    @{
+                        var projects = Data.Store.VehicleProjects.Where(x => x.VehicleId == v.Id).OrderByDescending(x => x.UpdatedUtc).ToList();
+                        if (!projects.Any())
+                        {
+                            <p class="empty-text">No major projects logged.</p>
+                        }
+                        else
+                        {
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Project</th>
+                                        <th>Status</th>
+                                        <th>Target Date</th>
+                                        <th class="text-right">Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(var p in projects)
+                                    {
+                                        <tr>
+                                            <td><strong>@p.Title</strong><br/><span style="font-size: 0.85em; color: #555;">@p.Description</span></td>
+                                            <td>@p.Status</td>
+                                            <td>@(p.TargetDate?.ToString("MMM yyyy") ?? "—")</td>
+                                            <td class="text-right">@p.ActualCost.ToString("C0")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+                </div>
+
+                <div class="report-section">
+                    <h3>Service History</h3>
+                    @{
+                        var services = Data.Store.MaintenanceRecords.Where(x => x.VehicleId == v.Id).OrderByDescending(x => x.ServiceDate).ToList();
+                        if (!services.Any())
+                        {
+                            <p class="empty-text">No service records found.</p>
+                        }
+                        else
+                        {
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 15%">Date</th>
+                                        <th style="width: 15%">Odometer</th>
+                                        <th style="width: 35%">Service</th>
+                                        <th style="width: 25%">Shop/Parts</th>
+                                        <th style="width: 10%" class="text-right">Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(var m in services)
+                                    {
+                                        <tr>
+                                            <td>@m.ServiceDate.ToString("MMM d, yyyy")</td>
+                                            <td>@m.Odometer.ToString("N0") mi</td>
+                                            <td>
+                                                <strong>@m.ServiceType</strong>
+                                                @if (!string.IsNullOrEmpty(m.Notes))
+                                                {
+                                                    <br/><span style="font-size: 0.85em; color: #555;">@m.Notes</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @m.ShopName
+                                                @if (m.Parts != null && m.Parts.Any())
+                                                {
+                                                    <div style="font-size: 0.8em; margin-top: 2px;">
+                                                        @foreach(var part in m.Parts)
+                                                        {
+                                                            <div>- @part.PartName @((part.Cost > 0) ? $"({part.Cost:C0})" : "")</div>
+                                                        }
+                                                    </div>
+                                                }
+                                            </td>
+                                            <td class="text-right">@(m.Cost == 0 ? "Free" : m.Cost.ToString("C0"))</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    /* Styling isolated to the report component for screen & print */
+    .print-container {
+        background-color: #fff;
+        color: #000;
+        padding: 40px;
+        border-radius: 8px;
+        font-family: inherit;
+    }
+    
+    .vehicle-report-page {
+        margin-bottom: 60px;
+        page-break-after: always;
+    }
+    .vehicle-report-page:last-child {
+        page-break-after: auto;
+    }
+
+    .report-header {
+        border-bottom: 2px solid #333;
+        padding-bottom: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .report-header h2 {
+        margin: 0 0 5px 0;
+        font-size: 24px;
+        font-weight: 700;
+    }
+    
+    .report-header p {
+        margin: 0;
+        color: #555;
+        font-size: 14px;
+    }
+
+    .report-section {
+        margin-bottom: 30px;
+    }
+
+    .report-section h3 {
+        font-size: 18px;
+        text-transform: uppercase;
+        color: #444;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 5px;
+        margin-bottom: 15px;
+    }
+
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .report-table th, .report-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .report-table th {
+        font-weight: 600;
+        color: #666;
+        background-color: #fafafa;
+    }
+
+    .empty-text {
+        font-style: italic;
+        color: #888;
+    }
+
+    .text-right { text-align: right !important; }
+
+    @@media print {
+        /* Hide global App UI so only the report prints */
+        .mud-appbar, .mud-drawer, .mud-drawer-overlay, .d-print-none {
+            display: none !important;
+        }
+        .mud-main-content {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        body { 
+            background: #fff !important; 
+            margin: 0; 
+            padding: 0; 
+        }
+        .print-container {
+            padding: 0 !important;
+        }
+    }
+</style>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    private async Task PrintAsync()
+    {
+        await JS.InvokeVoidAsync("print");
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

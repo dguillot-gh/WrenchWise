@@ -31,15 +31,18 @@
             <EditForm Model="_vehicle" OnValidSubmit="SaveVehicleAsync">
                 <DataAnnotationsValidator />
                 <MudGrid Spacing="2">
-                    <MudItem xs="12" sm="6">
+                    <MudItem xs="12" sm="5">
                         <MudTextField Label="Nickname" @bind-Value="_vehicle.Nickname"
                                       Variant="Variant.Outlined" Margin="Margin.Dense"
                                       Required="true" Placeholder="e.g. Daily Civic" />
                     </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudNumericField Label="Current Odometer" @bind-Value="_vehicle.CurrentOdometer"
+                    <MudItem xs="12" sm="4">
+                        <MudNumericField Label="Odometer" @bind-Value="_vehicle.CurrentOdometer"
                                          Variant="Variant.Outlined" Margin="Margin.Dense"
                                          HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="mi" />
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudColorPicker Label="Color Theme" @bind-Text="_vehicle.ColorHex" ColorPickerMode="ColorPickerMode.RGB" ColorPickerView="ColorPickerView.Palette" DisableAlpha="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
 
                     <MudItem xs="12">
@@ -95,10 +98,10 @@ else
             var isActive = vehicle.Id == WrenchWise.ActiveVehicleId;
 
             <MudItem xs="12" sm="6" md="4">
-                <MudCard Elevation="isActive ? 4 : 1" Class="@(isActive ? "border-solid border-2 border-primary" : "")">
+                <MudCard Elevation="isActive ? 4 : 1" Style="@($"border-left-width: 6px; border-left-style: solid; border-left-color: {vehicle.ColorHex} !important;")">
                     <MudCardHeader Class="pb-3">
                         <CardHeaderAvatar>
-                            <MudAvatar Color="isActive ? Color.Primary : Color.Default" Variant="Variant.Filled" Style="height:50px; width:50px;">
+                            <MudAvatar Variant="Variant.Filled" Style="@($"background-color: {vehicle.ColorHex} !important; color: white !important; height:50px; width:50px;")">
                                 <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" />
                             </MudAvatar>
                         </CardHeaderAvatar>
@@ -202,6 +205,7 @@ else
             Year = v.Year,
             Vin = v.Vin,
             Notes = v.Notes,
+            ColorHex = v.ColorHex,
             CurrentOdometer = v.CurrentOdometer
         };
         _editingId = v.Id;

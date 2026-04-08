@@ -32,7 +32,7 @@ else
         <MudCard Elevation="2" Class="mb-6 border-l-4 border-solid" Style="border-left-color: var(--mud-palette-primary);">
             <MudCardHeader>
                 <CardHeaderContent>
-                    <MudText Typo="Typo.subtitle1">New Tire Set</MudText>
+                    <MudText Typo="Typo.subtitle1">@(_isEditing ? "Edit Tire Set" : "New Tire Set")</MudText>
                 </CardHeaderContent>
                 <CardHeaderActions>
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" Size="Size.Small" />
@@ -100,7 +100,9 @@ else
                             <MudText Typo="Typo.caption" Class="opacity-60">@set.Position</MudText>
                         </CardHeaderContent>
                         <CardHeaderActions>
-                             <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
+                            <MudIconButton Icon="@(_expandedTireId == set.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" OnClick="@(() => ToggleExpand(set.Id))" />
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
+                                <MudMenuItem OnClick="() => EditRecord(set)" Icon="@Icons.Material.Filled.Edit">Edit</MudMenuItem>
                                 <MudMenuItem OnClick="() => WrenchWise.DeleteTireRecordAsync(set.Id)" IconColor="Color.Error" Icon="@Icons.Material.Filled.Delete">Delete</MudMenuItem>
                             </MudMenu>
                         </CardHeaderActions>
@@ -112,13 +114,53 @@ else
                         </div>
                         <MudDivider Class="my-2" />
                         <div class="d-flex justify-space-between align-center">
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.DirectionsCar">
+                            @{
+                                var vColorTires = vehicle?.ColorHex ?? "var(--mud-palette-primary)";
+                            }
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.DirectionsCar" Style="@($"color: {vColorTires}; border-color: {vColorTires};")">
                                 @(vehicle?.Nickname ?? "Unknown")
                             </MudChip>
                             <MudText Typo="Typo.caption" Class="opacity-50">
                                 @set.InstalledDate.ToString("MMM yyyy")
                             </MudText>
                         </div>
+
+                        <MudCollapse Expanded="@(_expandedTireId == set.Id)">
+                            <MudDivider Class="my-3" />
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudText Typo="Typo.subtitle2">Rotations</MudText>
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" OnClick="@(() => PromptAddRotation(set))" StartIcon="@Icons.Material.Filled.Add">Add Rotation</MudButton>
+                            </div>
+                            
+                            @if (_loggingRotationId == set.Id)
+                            {
+                                <div class="d-flex align-center gap-2 mb-3">
+                                    <MudNumericField @bind-Value="_newRotationOdo" Margin="Margin.Dense" Variant="Variant.Outlined" Label="Odometer" HideSpinButtons="true" />
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="@(() => SaveRotationAsync(set))">Save</MudButton>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _loggingRotationId = null)" />
+                                </div>
+                            }
+
+                            @if (set.Rotations == null || set.Rotations.Count == 0)
+                            {
+                                <MudText Typo="Typo.caption" Class="opacity-60 mb-2 d-block">No rotations logged yet.</MudText>
+                            }
+                            else
+                            {
+                                <MudStack Spacing="1" Class="mb-2">
+                                    @foreach (var rot in set.Rotations.OrderByDescending(x => x.Odometer))
+                                    {
+                                        <div class="d-flex justify-space-between align-center py-1 border-b-1 mud-border-lines-default">
+                                            <div class="d-flex align-center gap-2">
+                                                <MudIcon Icon="@Icons.Material.Filled.RotateRight" Size="Size.Small" Class="opacity-60" />
+                                                <MudText Typo="Typo.body2">@rot.Odometer.ToString("N0") mi</MudText>
+                                            </div>
+                                            <MudText Typo="Typo.caption" Class="opacity-60">@rot.Date.ToString("MMM d, yyyy")</MudText>
+                                        </div>
+                                    }
+                                </MudStack>
+                            }
+                        </MudCollapse>
                     </MudCardContent>
                 </MudCard>
             }
@@ -130,6 +172,11 @@ else
     private TireRecord _record = new();
     private DateTime? _installDate = DateTime.Today;
     private bool _showForm = false;
+    private bool _isEditing = false;
+    private Guid? _expandedTireId;
+    
+    private Guid? _loggingRotationId;
+    private int _newRotationOdo;
 
     protected override async Task OnInitializedAsync()
     {
@@ -138,10 +185,20 @@ else
         ResetRecord();
     }
 
+    private void ToggleExpand(Guid tireId)
+    {
+        _expandedTireId = _expandedTireId == tireId ? null : tireId;
+        _loggingRotationId = null;
+    }
+
     private void ToggleForm()
     {
         _showForm = !_showForm;
-        if (!_showForm) ResetRecord();
+        if (!_showForm) 
+        {
+            ResetRecord();
+            _isEditing = false;
+        }
     }
 
     private void ResetRecord()
@@ -169,6 +226,27 @@ else
         }
     }
 
+    private void EditRecord(TireRecord record)
+    {
+        _record = new TireRecord
+        {
+            Id = record.Id,
+            VehicleId = record.VehicleId,
+            Position = record.Position,
+            BrandModel = record.BrandModel,
+            InstalledDate = record.InstalledDate,
+            InstalledOdometer = record.InstalledOdometer,
+            RemovedDate = record.RemovedDate,
+            RemovedOdometer = record.RemovedOdometer,
+            PurchaseCost = record.PurchaseCost,
+            Notes = record.Notes,
+            Rotations = record.Rotations
+        };
+        _installDate = record.InstalledDate.ToDateTime(TimeOnly.MinValue);
+        _isEditing = true;
+        _showForm = true;
+    }
+
     private async Task SaveRecordAsync()
     {
         if (WrenchWise.Vehicles.Count == 0 || string.IsNullOrWhiteSpace(_record.BrandModel))
@@ -178,12 +256,44 @@ else
         }
 
         _record.InstalledDate = DateOnly.FromDateTime(_installDate ?? DateTime.Today);
-        await WrenchWise.AddTireRecordAsync(_record);
-
-        Snackbar.Add("Tire set added successfully!", Severity.Success);
-
+        
+        if (_isEditing)
+        {
+            await WrenchWise.UpdateTireRecordAsync(_record);
+            Snackbar.Add("Tire set updated successfully!", Severity.Success);
+        }
+        else
+        {
+            await WrenchWise.AddTireRecordAsync(_record);
+            Snackbar.Add("Tire set added successfully!", Severity.Success);
+        }
+        
         ResetRecord();
         _showForm = false;
+        _isEditing = false;
+    }
+
+    private void PromptAddRotation(TireRecord set)
+    {
+        var v = WrenchWise.Vehicles.FirstOrDefault(x => x.Id == set.VehicleId);
+        _newRotationOdo = v?.CurrentOdometer ?? set.InstalledOdometer;
+        _loggingRotationId = set.Id;
+    }
+
+    private async Task SaveRotationAsync(TireRecord set)
+    {
+        if (set.Rotations == null)
+            set.Rotations = new List<TireRotation>();
+
+        set.Rotations.Add(new TireRotation
+        {
+            Date = DateOnly.FromDateTime(DateTime.Today),
+            Odometer = _newRotationOdo
+        });
+        
+        await WrenchWise.UpdateTireRecordAsync(set);
+        _loggingRotationId = null;
+        Snackbar.Add("Rotation logged!", Severity.Success);
     }
 
     private void HandleChanged() => InvokeAsync(StateHasChanged);

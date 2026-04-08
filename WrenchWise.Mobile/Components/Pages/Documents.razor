@@ -1,0 +1,239 @@
+@page "/documents"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+@inject NavigationManager Nav
+
+<PageTitle>Documents</PageTitle>
+
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center justify-space-between mb-4 mt-2">
+    <MudText Typo="Typo.h5" Class="fw-bold">Vault</MudText>
+    @if (WrenchWise.Vehicles.Any())
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" Class="rounded-pill" OnClick="ToggleForm">Add</MudButton>
+    }
+</div>
+
+<MudCollapse Expanded="_showForm">
+    <MudCard Elevation="4" Class="mb-6 border-l-4 border-info">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@(_isEditing ? "Edit Document" : "New Document")</MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="ToggleForm" />
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent>
+            <EditForm Model="_model" OnValidSubmit="SaveDocumentAsync">
+                <DataAnnotationsValidator />
+                <MudGrid Spacing="2">
+                    <MudItem xs="12">
+                        <MudSelect T="Guid" Label="Vehicle" @bind-Value="_model.VehicleId" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var v in WrenchWise.Vehicles)
+                            {
+                                <MudSelectItem Value="@v.Id">@v.Nickname</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" Label="Document Type" @bind-Value="_model.DocumentType" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true">
+                            <MudSelectItem Value="@("Insurance")">Insurance</MudSelectItem>
+                            <MudSelectItem Value="@("Registration")">Registration</MudSelectItem>
+                            <MudSelectItem Value="@("Inspection")">Inspection</MudSelectItem>
+                            <MudSelectItem Value="@("Warranty")">Warranty</MudSelectItem>
+                            <MudSelectItem Value="@("Other")">Other</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField T="decimal" Label="Premium / Cost" @bind-Value="_model.PremiumCost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Provider / Issuer" @bind-Value="_model.Provider" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Policy / ID Number" @bind-Value="_model.PolicyNumber" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudDatePicker Label="Effective Date" @bind-Date="_effectiveDate" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudDatePicker Label="Expiration Date" @bind-Date="_expirationDate" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField Label="Notes" @bind-Value="_model.Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" Class="d-flex justify-end gap-2 mt-2">
+                        @if (_isEditing)
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => WrenchWise.DeleteDocumentAsync(_model.Id)" Class="mr-auto">Delete</MudButton>
+                        }
+                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="ToggleForm">Cancel</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudCardContent>
+    </MudCard>
+</MudCollapse>
+
+<MudText Typo="Typo.body2" Class="opacity-60 mb-6">Track insurance, registration, and inspections.</MudText>
+
+@if (!WrenchWise.VehicleDocuments.Any())
+{
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Large" Style="font-size: 5rem;" />
+        <MudText Typo="Typo.h6">No Documents</MudText>
+        <MudText Typo="Typo.body2">You have not added any documents.</MudText>
+    </MudStack>
+}
+else
+{
+    <MudStack Spacing="4" Class="pb-16">
+        @foreach (var d in WrenchWise.VehicleDocuments.OrderByDescending(x => x.UpdatedUtc))
+        {
+            var veh = WrenchWise.Vehicles.FirstOrDefault(v => v.Id == d.VehicleId);
+            
+            var isExpired = WrenchWise.IsDocumentExpired(d);
+            var isExpiring = WrenchWise.IsDocumentExpiring(d);
+            var statusColor = isExpired ? Color.Error : isExpiring ? Color.Warning : Color.Success;
+
+            <MudCard Elevation="2" Class="rounded-xl border-t-4 border-solid" Style="@($"border-top-color: var(--mud-palette-{statusColor.ToString().ToLower()});")">
+                <MudCardHeader Class="pb-1">
+                    <CardHeaderContent>
+                        <div class="d-flex justify-space-between align-center">
+                            <MudText Typo="Typo.subtitle1" Class="fw-bold">@d.DocumentType</MudText>
+                            <MudChip T="string" Color="statusColor" Size="Size.Small" Variant="Variant.Text">
+                                @(isExpired ? "Expired" : isExpiring ? "Expiring Soon" : "Active")
+                            </MudChip>
+                        </div>
+                        <div class="d-flex justify-space-between align-center">
+                            <MudText Typo="Typo.caption" Class="opacity-60">@(veh?.Nickname ?? "Unknown")</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditDocument(d)" />
+                        </div>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="pt-0">
+                    <div class="d-flex justify-space-between mb-1">
+                        <MudText Typo="Typo.body2" Class="opacity-80">Provider/Policy</MudText>
+                        <MudText Typo="Typo.body2" Class="fw-bold">@d.Provider @(string.IsNullOrEmpty(d.PolicyNumber) ? "" : $"# {d.PolicyNumber}")</MudText>
+                    </div>
+
+                    @if (d.PremiumCost > 0)
+                    {
+                        <div class="d-flex justify-space-between border-b-1 border-solid pb-2 mb-2" style="border-color: var(--mud-palette-divider);">
+                            <MudText Typo="Typo.caption" Class="opacity-60">Premium Cost</MudText>
+                            <MudText Typo="Typo.body2" Class="text-success fw-bold">@d.PremiumCost.ToString("C0")</MudText>
+                        </div>
+                    }
+
+                    <div class="d-flex justify-space-between">
+                        <div>
+                            <MudText Typo="Typo.caption" Class="opacity-60 d-block">Effective</MudText>
+                            <MudText Typo="Typo.body2">@(d.EffectiveDate?.ToString("d") ?? "—")</MudText>
+                        </div>
+                        <div class="text-end">
+                            <MudText Typo="Typo.caption" Class="opacity-60 d-block">Expiration</MudText>
+                            <MudText Typo="Typo.body2" Color="statusColor" Class="fw-bold">@(d.ExpirationDate?.ToString("d") ?? "—")</MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudStack>
+}
+
+<style>
+    .border-l-4 { border-left-width: 4px !important; border-left-style: solid !important; }
+    .border-info { border-left-color: var(--mud-palette-info) !important; }
+</style>
+
+@code {
+    private bool _showForm = false;
+    private bool _isEditing = false;
+    private VehicleDocument _model = new();
+    private DateTime? _effectiveDate;
+    private DateTime? _expirationDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+        ResetForm();
+    }
+
+    private void ToggleForm()
+    {
+        _showForm = !_showForm;
+        if (!_showForm)
+        {
+            ResetForm();
+        }
+    }
+
+    private void ResetForm()
+    {
+        _model = new VehicleDocument
+        {
+            VehicleId = WrenchWise.ActiveVehicleId != Guid.Empty ? WrenchWise.ActiveVehicleId : WrenchWise.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+        };
+        _effectiveDate = null;
+        _expirationDate = null;
+        _isEditing = false;
+    }
+
+    private void EditDocument(VehicleDocument d)
+    {
+        _model = new VehicleDocument
+        {
+            Id = d.Id,
+            VehicleId = d.VehicleId,
+            DocumentType = d.DocumentType,
+            Provider = d.Provider,
+            PolicyNumber = d.PolicyNumber,
+            PremiumCost = d.PremiumCost,
+            EffectiveDate = d.EffectiveDate,
+            ExpirationDate = d.ExpirationDate,
+            Notes = d.Notes
+        };
+        _effectiveDate = d.EffectiveDate?.ToDateTime(TimeOnly.MinValue);
+        _expirationDate = d.ExpirationDate?.ToDateTime(TimeOnly.MinValue);
+        _isEditing = true;
+        _showForm = true;
+    }
+
+    private async Task SaveDocumentAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.DocumentType)) return;
+
+        _model.EffectiveDate = _effectiveDate.HasValue ? DateOnly.FromDateTime(_effectiveDate.Value) : null;
+        _model.ExpirationDate = _expirationDate.HasValue ? DateOnly.FromDateTime(_expirationDate.Value) : null;
+
+        if (_isEditing)
+        {
+            await WrenchWise.UpdateDocumentAsync(_model);
+            Snackbar.Add("Document updated", Severity.Success);
+        }
+        else
+        {
+            await WrenchWise.AddDocumentAsync(_model);
+            Snackbar.Add("Document saved", Severity.Success);
+        }
+
+        _showForm = false;
+        ResetForm();
+    }
+
+    private void HandleChanged()
+    {
+        if (_isEditing && WrenchWise.VehicleDocuments.All(d => d.Id != _model.Id))
+        {
+            ToggleForm(); // Close form if current doc was deleted
+        }
+        InvokeAsync(StateHasChanged);
+    }
+    
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

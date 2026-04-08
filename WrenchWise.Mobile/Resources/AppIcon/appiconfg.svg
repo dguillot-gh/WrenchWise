@@ -1,21 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
-    <!-- Wrench Icon – foreground for app icon -->
+    <!-- Modern Classic Wrench Icon - Slate Theme -->
     <g transform="translate(228,228)">
-        <!-- Outer accent ring -->
-        <circle cx="0" cy="0" r="170" fill="none" stroke="#35c2a1" stroke-width="8" opacity="0.3"/>
-        <!-- Wrench shape -->
-        <g transform="rotate(-45)">
-            <!-- Handle -->
-            <rect x="-18" y="-120" width="36" height="160" rx="12" fill="#35c2a1"/>
-            <!-- Head (open-end wrench jaw) -->
-            <path d="M-40,40 L-18,40 L-18,100 Q-18,130 -48,140 L-48,120 Q-30,115 -30,100 L-30,40 Z" fill="#35c2a1"/>
-            <path d="M40,40 L18,40 L18,100 Q18,130 48,140 L48,120 Q30,115 30,100 L30,40 Z" fill="#35c2a1"/>
-            <!-- Jaw opening detail -->
-            <rect x="-10" y="80" width="20" height="50" rx="6" fill="#0f1922"/>
-            <!-- Head top bolt detail -->
-            <circle cx="0" cy="-100" r="14" fill="#28a88a"/>
-            <circle cx="0" cy="-100" r="6" fill="#0f1922"/>
+        <!-- Ambient Logo Glow -->
+        <circle cx="0" cy="0" r="140" fill="#38BDF8" opacity="0.15"/>
+        <circle cx="0" cy="0" r="160" fill="none" stroke="#38BDF8" stroke-width="4" opacity="0.3"/>
+        
+        <g transform="rotate(45)">
+            <!-- Top Head (Ring end) -->
+            <circle cx="0" cy="-110" r="45" fill="#38BDF8"/>
+            <!-- Hole within ring -->
+            <circle cx="0" cy="-110" r="24" fill="#0f1922"/>
+            
+            <!-- Bottom Head (Open end) -->
+            <circle cx="0" cy="110" r="45" fill="#38BDF8"/>
+            <!-- Angled cutout for open end jaw -->
+            <rect x="-20" y="90" width="40" height="80" rx="4" fill="#0f1922" transform="rotate(-15 0 110)"/>
+
+            <!-- Main Handle Body -->
+            <rect x="-24" y="-80" width="48" height="160" fill="#38BDF8"/>
+            
+            <!-- Handle Grip Indent for 3D realism -->
+            <rect x="-10" y="-65" width="20" height="130" rx="10" fill="#0EA5E9"/>
+            <!-- Grip inner shadow/highlight simulation -->
+            <rect x="-6" y="-60" width="12" height="120" rx="6" fill="#0284C7"/>
         </g>
     </g>
 </svg>

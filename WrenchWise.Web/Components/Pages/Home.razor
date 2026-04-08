@@ -28,6 +28,21 @@ else
     var store = Data.Store!;
     var dueReminders = store.ServiceReminders.Where(r => Data.IsReminderDue(r)).ToList();
     var overdueReminders = store.ServiceReminders.Where(r => Data.IsReminderOverdue(r)).ToList();
+    var expiringDocs = store.VehicleDocuments.Where(d => Data.IsDocumentExpiring(d)).ToList();
+    var expiredDocs = store.VehicleDocuments.Where(d => Data.IsDocumentExpired(d)).ToList();
+
+    @if (expiredDocs.Any())
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-5 rounded-xl" Icon="@Icons.Material.Filled.Warning">
+            <b>@expiredDocs.Count document(s) expired</b> — @string.Join(", ", expiredDocs.Select(d => d.DocumentType))
+        </MudAlert>
+    }
+    else if (expiringDocs.Any())
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-5 rounded-xl" Icon="@Icons.Material.Filled.Description">
+            <b>@expiringDocs.Count document(s) expiring within 30 days</b> — @string.Join(", ", expiringDocs.Select(d => d.DocumentType))
+        </MudAlert>
+    }
 
     @if (overdueReminders.Any())
     {
@@ -130,8 +145,8 @@ else
 
     @* ── Charts ───────────────────────────────────────────────────────── *@
     <MudGrid Spacing="3">
-        <MudItem xs="12" md="5">
-            <MudCard Elevation="3" Class="rounded-xl">
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="3" Class="rounded-xl h-100">
                 <MudCardHeader>
                     <CardHeaderContent>
                         <MudText Typo="Typo.subtitle1" Class="fw-bold">Cost Distribution</MudText>
@@ -140,23 +155,69 @@ else
                 <MudCardContent Class="d-flex justify-center">
                     <MudChart T="double" ChartType="ChartType.Donut"
                               ChartSeries="@_donutSeries" ChartLabels="@_donutLabels"
-                              Width="280px" Height="280px"
+                              Width="260px" Height="260px"
                               ChartOptions="@_donutOptions" />
                 </MudCardContent>
             </MudCard>
         </MudItem>
-        <MudItem xs="12" md="7">
-            <MudCard Elevation="3" Class="rounded-xl">
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="3" Class="rounded-xl h-100">
                 <MudCardHeader>
                     <CardHeaderContent>
-                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Monthly Spending (Last 6 mo.)</MudText>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Maintenance Breakdown</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Class="d-flex justify-center">
+                    <MudChart T="double" ChartType="ChartType.Donut"
+                              ChartSeries="@_maintSeries" ChartLabels="@_maintLabels"
+                              Width="260px" Height="260px"
+                              ChartOptions="@_maintOptions" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="3" Class="rounded-xl h-100">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Monthly Spending</MudText>
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent>
                     <MudChart T="double" ChartType="ChartType.Bar"
-                              ChartSeries="@_barSeries" ChartLabels="@_barLabels"
-                              Width="100%" Height="260px"
+                              ChartSeries="@_barSeries" XAxisLabels="@_barLabels"
+                              Width="100%" Height="220px"
                               ChartOptions="@_barOptions" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="3" Class="rounded-xl h-100">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Fleet MPG Trend</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudChart T="double" ChartType="ChartType.Line"
+                              ChartSeries="@_mpgSeries" XAxisLabels="@_barLabels"
+                              Width="100%" Height="220px"
+                              ChartOptions="@_lineOptions" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="3" Class="rounded-xl h-100">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.subtitle1" Class="fw-bold">Cost per Mile ($)</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudChart T="double" ChartType="ChartType.Line"
+                              ChartSeries="@_cpmSeries" XAxisLabels="@_barLabels"
+                              Width="100%" Height="220px"
+                              ChartOptions="@_cpmOptions" />
                 </MudCardContent>
             </MudCard>
         </MudItem>
@@ -178,10 +239,19 @@ else
     private string[] _donutLabels = Array.Empty<string>();
     private ChartOptions _donutOptions = new() { ChartPalette = new[] { "#EAB308", "#0EA5E9", "#35c2a1" } };
 
-    // Bar
+    // Maint Breakdown Donut
+    private List<ChartSeries<double>> _maintSeries = new();
+    private string[] _maintLabels = Array.Empty<string>();
+    private ChartOptions _maintOptions = new() { ChartPalette = new[] { "#F43F5E", "#8B5CF6", "#F97316", "#14B8A6", "#64748B" } };
+
+    // Bar & Line Charts
     private List<ChartSeries<double>> _barSeries = new();
+    private List<ChartSeries<double>> _mpgSeries = new();
+    private List<ChartSeries<double>> _cpmSeries = new();
     private string[] _barLabels = new string[6];
     private ChartOptions _barOptions = new() { ChartPalette = new[] { "#35c2a1" } };
+    private ChartOptions _lineOptions = new() { ChartPalette = new[] { "#0EA5E9" } };
+    private ChartOptions _cpmOptions = new() { ChartPalette = new[] { "#F59E0B" } };
 
     protected override async Task OnInitializedAsync()
     {
@@ -208,19 +278,44 @@ else
         };
         _donutLabels = new[] { "Service", "Fuel", "Tires" };
 
-        // Bar — last 6 months
+        // Maintenance Breakdown
+        var maintGroups = store.MaintenanceRecords.GroupBy(x => string.IsNullOrWhiteSpace(x.ServiceType) ? "Other" : x.ServiceType).ToList();
+        _maintSeries = new List<ChartSeries<double>>();
+        var mLabels = new List<string>();
+        foreach (var g in maintGroups)
+        {
+            mLabels.Add(g.Key);
+            _maintSeries.Add(new ChartSeries<double> { Name = g.Key, Data = new[] { (double)g.Sum(x => x.Cost) } });
+        }
+        _maintLabels = mLabels.ToArray();
+
+        // Bar and Line — last 6 months
         var now = DateTime.Now;
         var seriesData = new double[6];
+        var mpgData = new double[6];
+        var cpmData = new double[6];
+        
         for (int i = 5; i >= 0; i--)
         {
             var month = now.AddMonths(-i);
             _barLabels[5 - i] = month.ToString("MMM");
 
-            var fuel  = store.FuelRecords.Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month).Sum(x => (double)x.TotalCost);
-            var maint = store.MaintenanceRecords.Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month).Sum(x => (double)x.Cost);
-            seriesData[5 - i] = fuel + maint;
+            var mFuels = store.FuelRecords.Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month).ToList();
+            var mMaints = store.MaintenanceRecords.Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month).ToList();
+
+            var fuelCostMo = mFuels.Sum(x => (double)x.TotalCost);
+            var maintCostMo = mMaints.Sum(x => (double)x.Cost);
+            seriesData[5 - i] = fuelCostMo + maintCostMo;
+
+            double mGals = mFuels.Sum(x => (double)x.Gallons);
+            double mMiles = mFuels.Sum(x => x.TripMiles);
+            mpgData[5 - i] = mGals > 0 ? Math.Round(mMiles / mGals, 1) : 0;
+            
+            cpmData[5 - i] = mMiles > 0 ? Math.Round((fuelCostMo + maintCostMo) / mMiles, 2) : 0;
         }
         _barSeries = new List<ChartSeries<double>> { new() { Name = "Spending", Data = seriesData } };
+        _mpgSeries = new List<ChartSeries<double>> { new() { Name = "Avg MPG", Data = mpgData } };
+        _cpmSeries = new List<ChartSeries<double>> { new() { Name = "Cost/Mile", Data = cpmData } };
     }
 
     public void Dispose() => Data.Changed -= StateHasChanged;

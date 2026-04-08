@@ -12,5 +12,6 @@ public class TireRecord
     public int? RemovedOdometer { get; set; }
     public decimal PurchaseCost { get; set; }
     public string Notes { get; set; } = string.Empty;
+    public List<TireRotation> Rotations { get; set; } = new();
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }

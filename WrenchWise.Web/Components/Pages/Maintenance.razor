@@ -55,11 +55,22 @@ else
                 <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@(v?.Nickname ?? "?")</MudChip>
             </MudTd>
             <MudTd DataLabel="Service">
-                <div>
+                <div class="d-flex flex-column gap-1">
                     <MudText Typo="Typo.body2" Class="fw-bold">@context.ServiceType</MudText>
                     @if (!string.IsNullOrEmpty(context.Notes))
                     {
-                        <MudText Typo="Typo.caption" Class="opacity-50">@context.Notes</MudText>
+                        <MudText Typo="Typo.caption" Class="opacity-60">@context.Notes</MudText>
+                    }
+                    @if (context.Parts != null && context.Parts.Any())
+                    {
+                        <div class="d-flex gap-1 flex-wrap mt-1">
+                            @foreach(var part in context.Parts)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ma-0" Style="font-size: 0.65rem;">
+                                    @part.PartName @((part.Cost > 0) ? $"({part.Cost:C0})" : "")
+                                </MudChip>
+                            }
+                        </div>
                     }
                 </div>
             </MudTd>
