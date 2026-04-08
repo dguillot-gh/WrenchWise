@@ -1,0 +1,102 @@
+@page "/projects"
+@inject WebDataService Data
+@implements IDisposable
+
+<PageTitle>Projects — WrenchWise</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-6">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">Vehicle Projects</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60">Plan and track your major upgrades & repairs.</MudText>
+    </div>
+</div>
+
+@if (!Data.IsLoaded)
+{
+    <MudGrid>
+        @for (int i = 0; i < 3; i++)
+        {
+            <MudItem xs="12" md="6" lg="4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" Class="rounded-xl" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    var projects = Data.Store!.VehicleProjects.OrderByDescending(x => x.UpdatedUtc).ToList();
+    if (!projects.Any())
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="rounded-xl">
+            No projects found. Use the mobile app to create your first vehicle project!
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            @foreach (var p in projects)
+            {
+                var vehicle = Data.Store!.Vehicles.FirstOrDefault(v => v.Id == p.VehicleId);
+                var vehName = vehicle?.Nickname ?? "Unknown Vehicle";
+
+                <MudItem xs="12" md="6" lg="4">
+                    <MudCard Elevation="3" Class="rounded-xl h-100" Style="border: 1px solid var(--mud-palette-lines-default);">
+                        <MudCardHeader>
+                            <CardHeaderAvatar>
+                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled">@vehName[0]</MudAvatar>
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.subtitle1" Class="fw-bold">@p.Title</MudText>
+                                <MudText Typo="Typo.caption" Class="opacity-60">@vehName</MudText>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                <MudChip T="string" Color="GetStatusColor(p.Status)" Size="Size.Small" Variant="Variant.Text">@p.Status</MudChip>
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                        <MudCardContent Class="pt-0">
+                            <MudText Typo="Typo.body2" Class="mb-3 opacity-80" Style="min-height: 40px;">@p.Description</MudText>
+                            
+                            <div class="d-flex justify-space-between mb-1">
+                                <MudText Typo="Typo.caption">Estimated</MudText>
+                                <MudText Typo="Typo.caption">Actual</MudText>
+                            </div>
+                            <div class="d-flex justify-space-between">
+                                <MudText Typo="Typo.body2" Class="fw-bold text-warning">@p.EstimatedCost.ToString("C")</MudText>
+                                <MudText Typo="Typo.body2" Class="@($"fw-bold {(p.ActualCost > p.EstimatedCost ? "text-error" : "text-success")}")">
+                                    @(p.ActualCost > 0 ? p.ActualCost.ToString("C") : "—")
+                                </MudText>
+                            </div>
+                            
+                            @if (p.TargetDate.HasValue)
+                            {
+                                <MudDivider Class="my-3"/>
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" Class="opacity-60" />
+                                    <MudText Typo="Typo.caption" Class="opacity-80">Target: @p.TargetDate.Value.ToString("d")</MudText>
+                                </div>
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Planning" => Color.Warning,
+        "InProgress" => Color.Info,
+        "Completed" => Color.Success,
+        _ => Color.Default
+    };
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

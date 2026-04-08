@@ -73,6 +73,37 @@ else
                               ChartOptions="@_barChartOptions" />
                 </MudExpansionPanel>
 
+                <MudExpansionPanel Text="Maintenance Breakdown" Expanded="true" Icon="@Icons.Material.Filled.Build">
+                    @if (maintChartData.Any())
+                    {
+                        <MudChart T="double" ChartType="ChartType.Donut"
+                                  Width="250px" Height="250px"
+                                  Data="@maintChartData"
+                                  Labels="@maintChartLabels"
+                                  ChartOptions="@maintChartOptions" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="opacity-50 pa-4 text-center">No maintenance data.</MudText>
+                    }
+                </MudExpansionPanel>
+
+                <MudExpansionPanel Text="MPG Trend (6 mo.)" Expanded="true" Icon="@Icons.Material.Filled.Timeline">
+                    <MudChart T="double" ChartType="ChartType.Line"
+                              ChartSeries="@_mpgSeries"
+                              XAxisLabels="@_xAxisLabels"
+                              Width="100%" Height="250px"
+                              ChartOptions="@_lineChartOptions" />
+                </MudExpansionPanel>
+
+                <MudExpansionPanel Text="Cost per Mile Trend" Expanded="true" Icon="@Icons.Material.Filled.TrendingUp">
+                    <MudChart T="double" ChartType="ChartType.Line"
+                              ChartSeries="@_cpmSeries"
+                              XAxisLabels="@_xAxisLabels"
+                              Width="100%" Height="250px"
+                              ChartOptions="@_cpmChartOptions" />
+                </MudExpansionPanel>
+
                 @if (activeVeh != null)
                 {
                     <MudExpansionPanel Text="@($"{activeVeh.Nickname} Summary")" Icon="@Icons.Material.Filled.Info">
@@ -120,16 +151,28 @@ else
         ChartPalette = new[] { "#35c2a1" }
     };
 
+    // Advanced Charts Data
+    private double[] maintChartData = Array.Empty<double>();
+    private string[] maintChartLabels = Array.Empty<string>();
+    private ChartOptions maintChartOptions = new ChartOptions { ChartPalette = new[] { "#F43F5E", "#8B5CF6", "#F97316", "#14B8A6", "#64748B" } };
+
+    private List<ChartSeries<double>> _mpgSeries = new();
+    private List<ChartSeries<double>> _cpmSeries = new();
+    private ChartOptions _lineChartOptions = new ChartOptions { ChartPalette = new[] { "#0EA5E9" } };
+    private ChartOptions _cpmChartOptions = new ChartOptions { ChartPalette = new[] { "#F59E0B" } };
+
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
         WrenchWise.Changed += HandleChanged;
-        PrepareBarChart();
+        PrepareCharts();
     }
 
-    private void PrepareBarChart()
+    private void PrepareCharts()
     {
         var seriesData = new double[6];
+        var mpgData = new double[6];
+        var cpmData = new double[6];
         var now = DateTime.Now;
         
         for (int i = 5; i >= 0; i--)
@@ -137,18 +180,36 @@ else
             var month = now.AddMonths(-i);
             _xAxisLabels[5 - i] = month.ToString("MMM");
 
-            var fuelTotal = WrenchWise.FuelRecords
-                .Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month)
-                .Sum(x => (double)x.TotalCost);
-                
-            var maintTotal = WrenchWise.MaintenanceRecords
-                .Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month)
-                .Sum(x => (double)x.Cost);
+            var fuels = WrenchWise.FuelRecords.Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month).ToList();
+            var maints = WrenchWise.MaintenanceRecords.Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month).ToList();
+
+            var fuelTotal = fuels.Sum(x => (double)x.TotalCost);
+            var maintTotal = maints.Sum(x => (double)x.Cost);
 
             seriesData[5 - i] = fuelTotal + maintTotal;
+
+            double mGals = fuels.Sum(x => (double)x.Gallons);
+            double mMiles = fuels.Sum(x => (double)x.TripMiles);
+            mpgData[5 - i] = mGals > 0 ? Math.Round(mMiles / mGals, 1) : 0;
+            
+            cpmData[5 - i] = mMiles > 0 ? Math.Round((fuelTotal + maintTotal) / mMiles, 2) : 0;
         }
 
         _series = new List<ChartSeries<double>> { new ChartSeries<double> { Name = "Spending", Data = seriesData } };
+        _mpgSeries = new List<ChartSeries<double>> { new ChartSeries<double> { Name = "Avg MPG", Data = mpgData } };
+        _cpmSeries = new List<ChartSeries<double>> { new ChartSeries<double> { Name = "Cost/Mile", Data = cpmData } };
+
+        // Maintenance Breakdown
+        var maintGroups = WrenchWise.MaintenanceRecords.GroupBy(x => string.IsNullOrWhiteSpace(x.ServiceType) ? "Other" : x.ServiceType).ToList();
+        var mLabels = new List<string>();
+        var mData = new List<double>();
+        foreach (var g in maintGroups)
+        {
+            mLabels.Add(g.Key);
+            mData.Add((double)g.Sum(x => x.Cost));
+        }
+        maintChartLabels = mLabels.ToArray();
+        maintChartData = mData.ToArray();
     }
 
     private bool HasAnyData => WrenchWise.FuelRecords.Any() || WrenchWise.MaintenanceRecords.Any();
@@ -188,7 +249,7 @@ else
 
     private void HandleChanged()
     {
-        PrepareBarChart();
+        PrepareCharts();
         InvokeAsync(StateHasChanged);
     }
 

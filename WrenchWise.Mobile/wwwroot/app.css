@@ -3,7 +3,7 @@
    ================================================================ */
 
 :root {
-    --mud-palette-primary: #35c2a1;
+    --mud-palette-primary: #64748B;
 }
 
 html, body {
@@ -13,7 +13,7 @@ html, body {
     height: 100%;
     width: 100%;
     overflow: hidden;
-    background-color: #0b1117;
+    background-color: #121212;
 }
 
 #app {

@@ -27,6 +27,8 @@ public class WrenchWiseService
     public IReadOnlyList<FuelRecord> FuelRecords => _offline.Store.FuelRecords;
     public IReadOnlyList<ServiceReminder> ServiceReminders => _offline.Store.ServiceReminders;
     public IReadOnlyList<TireRecord> TireRecords => _offline.Store.TireRecords;
+    public IReadOnlyList<VehicleProject> VehicleProjects => _offline.Store.VehicleProjects;
+    public IReadOnlyList<VehicleDocument> VehicleDocuments => _offline.Store.VehicleDocuments;
     public int PendingSyncCount => _offline.PendingOperations.Count;
     public DateTime? LastSyncUtc => _offline.LastSyncUtc == default ? null : _offline.LastSyncUtc;
     public string ApiBaseUrl => _offline.ApiBaseUrl;
@@ -43,7 +45,7 @@ public class WrenchWiseService
 
     private static readonly FilePickerFileType CsvFileType = new(new Dictionary<DevicePlatform, IEnumerable<string>>
     {
-        { DevicePlatform.Android, ["text/csv", "text/plain"] },
+        { DevicePlatform.Android, ["text/csv", "text/plain", "application/csv", "text/comma-separated-values", "application/octet-stream"] },
         { DevicePlatform.WinUI, [".csv", ".txt"] },
         { DevicePlatform.iOS, ["public.comma-separated-values-text", "public.plain-text"] },
         { DevicePlatform.MacCatalyst, ["public.comma-separated-values-text", "public.plain-text"] }
@@ -183,6 +185,7 @@ public class WrenchWiseService
         existing.Vin = vehicle.Vin;
         existing.CurrentOdometer = vehicle.CurrentOdometer;
         existing.Notes = vehicle.Notes;
+        existing.ColorHex = vehicle.ColorHex;
         existing.UpdatedUtc = DateTime.UtcNow;
 
         QueueUpsert(SyncOperationType.UpsertVehicle, existing.Id, existing);
@@ -196,6 +199,8 @@ public class WrenchWiseService
         _offline.Store.FuelRecords.RemoveAll(x => x.VehicleId == vehicleId);
         _offline.Store.ServiceReminders.RemoveAll(x => x.VehicleId == vehicleId);
         _offline.Store.TireRecords.RemoveAll(x => x.VehicleId == vehicleId);
+        _offline.Store.VehicleProjects.RemoveAll(x => x.VehicleId == vehicleId);
+        _offline.Store.VehicleDocuments.RemoveAll(x => x.VehicleId == vehicleId);
         if (_offline.ActiveVehicleId == vehicleId)
         {
             _offline.ActiveVehicleId = _offline.Store.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty;
@@ -254,6 +259,28 @@ public class WrenchWiseService
     {
         _offline.Store.MaintenanceRecords.RemoveAll(r => r.Id == recordId);
         QueueDelete(SyncOperationType.DeleteMaintenance, recordId);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task UpdateMaintenanceRecordAsync(MaintenanceRecord record)
+    {
+        var existing = _offline.Store.MaintenanceRecords.FirstOrDefault(x => x.Id == record.Id);
+        if (existing is null)
+        {
+            return;
+        }
+
+        existing.VehicleId = record.VehicleId;
+        existing.ServiceDate = record.ServiceDate;
+        existing.Odometer = record.Odometer;
+        existing.Cost = record.Cost;
+        existing.ServiceType = record.ServiceType;
+        existing.ShopName = record.ShopName;
+        existing.Notes = record.Notes;
+        existing.UpdatedUtc = DateTime.UtcNow;
+
+        QueueUpsert(SyncOperationType.UpsertMaintenance, existing.Id, existing);
+        await UpdateVehicleOdometerAsync(existing.VehicleId, existing.Odometer);
         await PersistAndNotifyAsync();
     }
 
@@ -362,6 +389,73 @@ public class WrenchWiseService
     {
         _offline.Store.ServiceReminders.RemoveAll(r => r.Id == reminderId);
         QueueDelete(SyncOperationType.DeleteReminder, reminderId);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task AddProjectAsync(VehicleProject project)
+    {
+        project.UpdatedUtc = DateTime.UtcNow;
+        _offline.Store.VehicleProjects.Add(project);
+        QueueUpsert(SyncOperationType.UpsertProject, project.Id, project);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task UpdateProjectAsync(VehicleProject project)
+    {
+        var existing = _offline.Store.VehicleProjects.FirstOrDefault(x => x.Id == project.Id);
+        if (existing is null) return;
+        
+        existing.VehicleId = project.VehicleId;
+        existing.Title = project.Title;
+        existing.Description = project.Description;
+        existing.EstimatedCost = project.EstimatedCost;
+        existing.ActualCost = project.ActualCost;
+        existing.TargetDate = project.TargetDate;
+        existing.Status = project.Status;
+        existing.UpdatedUtc = DateTime.UtcNow;
+        
+        QueueUpsert(SyncOperationType.UpsertProject, existing.Id, existing);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task DeleteProjectAsync(Guid projectId)
+    {
+        _offline.Store.VehicleProjects.RemoveAll(x => x.Id == projectId);
+        QueueDelete(SyncOperationType.DeleteProject, projectId);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task AddDocumentAsync(VehicleDocument doc)
+    {
+        doc.UpdatedUtc = DateTime.UtcNow;
+        _offline.Store.VehicleDocuments.Add(doc);
+        QueueUpsert(SyncOperationType.UpsertDocument, doc.Id, doc);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task UpdateDocumentAsync(VehicleDocument doc)
+    {
+        var existing = _offline.Store.VehicleDocuments.FirstOrDefault(x => x.Id == doc.Id);
+        if (existing is null) return;
+        
+        existing.VehicleId = doc.VehicleId;
+        existing.DocumentType = doc.DocumentType;
+        existing.Provider = doc.Provider;
+        existing.PolicyNumber = doc.PolicyNumber;
+        existing.EffectiveDate = doc.EffectiveDate;
+        existing.ExpirationDate = doc.ExpirationDate;
+        existing.PremiumCost = doc.PremiumCost;
+        existing.Notes = doc.Notes;
+        existing.UpdatedUtc = DateTime.UtcNow;
+        
+        QueueUpsert(SyncOperationType.UpsertDocument, existing.Id, existing);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task DeleteDocumentAsync(Guid docId)
+    {
+        _offline.Store.VehicleDocuments.RemoveAll(x => x.Id == docId);
+        QueueDelete(SyncOperationType.DeleteDocument, docId);
         await PersistAndNotifyAsync();
     }
 
@@ -603,6 +697,20 @@ public class WrenchWiseService
         return dueByDate || dueByMileage;
     }
 
+    public bool IsDocumentExpiring(VehicleDocument d)
+    {
+        if (!d.ExpirationDate.HasValue) return false;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return d.ExpirationDate.Value > today && d.ExpirationDate.Value <= today.AddDays(30);
+    }
+
+    public bool IsDocumentExpired(VehicleDocument d)
+    {
+        if (!d.ExpirationDate.HasValue) return false;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return d.ExpirationDate.Value <= today;
+    }
+
     public async Task<string> ExportJsonBackupAsync()
     {
         var backupDir = Path.Combine(FileSystem.AppDataDirectory, "backups");
@@ -614,31 +722,15 @@ public class WrenchWiseService
         return filePath;
     }
 
-    public async Task<string> ExportCsvBackupAsync()
+    public async Task<string> ExportCsvAsync()
     {
-        var backupDir = Path.Combine(FileSystem.AppDataDirectory, "backups");
-        Directory.CreateDirectory(backupDir);
+        var exportDir = Path.Combine(FileSystem.CacheDirectory, "exports");
+        Directory.CreateDirectory(exportDir);
 
-        var filePath = Path.Combine(backupDir, $"wrenchwise-backup-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
-        var sb = new StringBuilder();
-
-        sb.AppendLine("Type,Vehicle,Date,Odometer,Amount,Notes");
-        foreach (var fuel in _offline.Store.FuelRecords.OrderByDescending(x => x.FillDate))
-        {
-            sb.AppendLine($"Fuel,{FindVehicleName(fuel.VehicleId)},{fuel.FillDate:yyyy-MM-dd},{fuel.Odometer},{fuel.TotalCost},\"{Escape(fuel.Station)}\"");
-        }
-
-        foreach (var service in _offline.Store.MaintenanceRecords.OrderByDescending(x => x.ServiceDate))
-        {
-            sb.AppendLine($"Service,{FindVehicleName(service.VehicleId)},{service.ServiceDate:yyyy-MM-dd},{service.Odometer},{service.Cost},\"{Escape(service.ServiceType)}\"");
-        }
-
-        foreach (var tire in _offline.Store.TireRecords.OrderByDescending(x => x.InstalledDate))
-        {
-            sb.AppendLine($"Tire,{FindVehicleName(tire.VehicleId)},{tire.InstalledDate:yyyy-MM-dd},{tire.InstalledOdometer},{tire.PurchaseCost},\"{Escape(tire.BrandModel)}\"");
-        }
-
-        await File.WriteAllTextAsync(filePath, sb.ToString());
+        var filePath = Path.Combine(exportDir, $"wrenchwise-data-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+        var csvContent = WrenchWise.Shared.Export.CsvExporter.ExportStoreToCsv(_offline.Store);
+        
+        await File.WriteAllTextAsync(filePath, csvContent);
         return filePath;
     }
 

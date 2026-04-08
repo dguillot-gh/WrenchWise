@@ -63,10 +63,11 @@
     </MudCardHeader>
     <MudCardContent Class="pt-0">
         <MudText Typo="Typo.body2" Class="mb-4 opacity-70">
-            Use CSV to migrate from other apps. A Full JSON Backup saves an exact digital copy of your entire WrenchWise offline database.
+            Use CSV to migrate from other apps or export to spreadsheets. A Full JSON Backup saves an exact digital copy of your entire WrenchWise offline database.
         </MudText>
         <MudStack Spacing="2">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile" OnClick="ImportCsvAsync">Import CSV Logs</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Surface" StartIcon="@Icons.Material.Filled.InsertDriveFile" OnClick="ExportCsvAsync">Export CSV (Excel/Sheets)</MudButton>
             <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportJsonAsync">Export Complete JSON Backup</MudButton>
         </MudStack>
     </MudCardContent>
@@ -109,6 +110,19 @@
             Snackbar.Add(result.Message, Severity.Success);
         else
             Snackbar.Add(result.Message, Severity.Error);
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        var path = await WrenchWise.ExportCsvAsync();
+        if (!string.IsNullOrEmpty(path))
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
+            {
+                Title = "WrenchWise CSV Data",
+                File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(path)
+            });
+        }
     }
 
     private async Task ExportJsonAsync()

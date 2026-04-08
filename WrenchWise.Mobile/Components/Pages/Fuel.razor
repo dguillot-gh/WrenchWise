@@ -147,7 +147,10 @@ else
                         </div>
 
                         <div class="d-flex justify-space-between align-center mt-3">
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Icon="@Icons.Material.Filled.DirectionsCar">
+                            @{
+                                var vColorFuel = WrenchWise.Vehicles.FirstOrDefault(v => v.Id == record.VehicleId)?.ColorHex ?? "var(--mud-palette-primary)";
+                            }
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Filled.DirectionsCar" Style="@($"color: {vColorFuel}; border-color: {vColorFuel};")">
                                 @FindVehicle(record.VehicleId)
                             </MudChip>
                             @if (milesDriven > 0)

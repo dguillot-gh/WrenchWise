@@ -73,4 +73,18 @@ public class WebDataService(IHttpClientFactory clientFactory)
         bool odoOver = r.DueOdometer.HasValue && vehicle != null && vehicle.CurrentOdometer > r.DueOdometer.Value + 500;
         return !r.IsCompleted && (dateOdo || odoOver);
     }
+
+    public bool IsDocumentExpiring(VehicleDocument d)
+    {
+        if (!d.ExpirationDate.HasValue) return false;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return d.ExpirationDate.Value > today && d.ExpirationDate.Value <= today.AddDays(30);
+    }
+
+    public bool IsDocumentExpired(VehicleDocument d)
+    {
+        if (!d.ExpirationDate.HasValue) return false;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return d.ExpirationDate.Value <= today;
+    }
 }

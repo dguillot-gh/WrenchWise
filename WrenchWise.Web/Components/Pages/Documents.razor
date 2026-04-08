@@ -1,0 +1,109 @@
+@page "/documents"
+@inject WebDataService Data
+@implements IDisposable
+
+<PageTitle>Documents — WrenchWise</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-6">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">Vehicle Documents</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60">Track your Insurance, Registration, and Inspections.</MudText>
+    </div>
+</div>
+
+@if (!Data.IsLoaded)
+{
+    <MudGrid>
+        @for (int i = 0; i < 3; i++)
+        {
+            <MudItem xs="12" md="6" lg="4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" Class="rounded-xl" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    var documents = Data.Store!.VehicleDocuments.OrderByDescending(x => x.UpdatedUtc).ToList();
+    if (!documents.Any())
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="rounded-xl">
+            No documents found. Use the mobile app to input vehicle documents!
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid Spacing="3">
+            @foreach (var d in documents)
+            {
+                var vehicle = Data.Store!.Vehicles.FirstOrDefault(v => v.Id == d.VehicleId);
+                var vehName = vehicle?.Nickname ?? "Unknown Vehicle";
+
+                var isExpired = Data.IsDocumentExpired(d);
+                var isExpiring = Data.IsDocumentExpiring(d);
+                var statusColor = isExpired ? Color.Error : isExpiring ? Color.Warning : Color.Success;
+
+                <MudItem xs="12" md="6" lg="4">
+                    <MudCard Elevation="3" Class="rounded-xl h-100" Style="border: 1px solid var(--mud-palette-lines-default);">
+                        <MudCardHeader>
+                            <CardHeaderAvatar>
+                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled">@vehName[0]</MudAvatar>
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.subtitle1" Class="fw-bold">@d.DocumentType</MudText>
+                                <MudText Typo="Typo.caption" Class="opacity-60">@vehName</MudText>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                <MudChip T="string" Color="statusColor" Size="Size.Small" Variant="Variant.Text">
+                                    @(isExpired ? "Expired" : isExpiring ? "Expiring Soon" : "Active")
+                                </MudChip>
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                        <MudCardContent Class="pt-0">
+                            <div class="d-flex justify-space-between mb-2">
+                                <MudText Typo="Typo.caption" Class="opacity-80">Provider/Policy</MudText>
+                                <MudText Typo="Typo.body2" Class="fw-bold">@d.Provider @(string.IsNullOrEmpty(d.PolicyNumber) ? "" : $"# {d.PolicyNumber}")</MudText>
+                            </div>
+                            
+                            @if (d.PremiumCost > 0)
+                            {
+                                <div class="d-flex justify-space-between mb-2">
+                                    <MudText Typo="Typo.caption" Class="opacity-80">Premium Component</MudText>
+                                    <MudText Typo="Typo.body2" Class="fw-bold text-success">@d.PremiumCost.ToString("C")</MudText>
+                                </div>
+                            }
+
+                            <MudDivider Class="my-3"/>
+                            
+                            <div class="d-flex justify-space-between">
+                                <div>
+                                    <MudText Typo="Typo.caption" Class="opacity-60 d-block">Effective Date</MudText>
+                                    <MudText Typo="Typo.body2">@(d.EffectiveDate?.ToString("d") ?? "—")</MudText>
+                                </div>
+                                <div class="text-end">
+                                    <MudText Typo="Typo.caption" Class="opacity-60 d-block">Expiration Date</MudText>
+                                    <MudText Typo="Typo.body2" Color="statusColor" Class="fw-bold">@(d.ExpirationDate?.ToString("d") ?? "—")</MudText>
+                                </div>
+                            </div>
+                            
+                            @if (!string.IsNullOrWhiteSpace(d.Notes))
+                            {
+                                <MudText Typo="Typo.caption" Class="d-block opacity-60 mt-2">Notes: @d.Notes</MudText>
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

@@ -10,5 +10,6 @@ public class MaintenanceRecord
     public decimal Cost { get; set; }
     public string ShopName { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
+    public List<ServicePart> Parts { get; set; } = new();
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }
