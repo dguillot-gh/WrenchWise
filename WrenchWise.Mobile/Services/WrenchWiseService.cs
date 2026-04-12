@@ -29,6 +29,7 @@ public class WrenchWiseService
     public IReadOnlyList<TireRecord> TireRecords => _offline.Store.TireRecords;
     public IReadOnlyList<VehicleProject> VehicleProjects => _offline.Store.VehicleProjects;
     public IReadOnlyList<VehicleDocument> VehicleDocuments => _offline.Store.VehicleDocuments;
+    public IReadOnlyList<ActivityLogEntry> ActivityLog => _offline.Store.ActivityLog;
     public int PendingSyncCount => _offline.PendingOperations.Count;
     public DateTime? LastSyncUtc => _offline.LastSyncUtc == default ? null : _offline.LastSyncUtc;
     public string ApiBaseUrl => _offline.ApiBaseUrl;
@@ -125,6 +126,8 @@ public class WrenchWiseService
             throw new InvalidOperationException("Set API URL first.");
         }
 
+        var opCount = _offline.PendingOperations.Count;
+
         var request = new SyncRequest
         {
             DeviceId = _offline.DeviceId,
@@ -137,25 +140,50 @@ public class WrenchWiseService
             request.FullStoreFallback = _offline.Store;
         }
 
-        using var client = new HttpClient
+        try
         {
-            Timeout = TimeSpan.FromSeconds(20)
-        };
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(20)
+            };
 
-        var endpoint = $"{_offline.ApiBaseUrl.TrimEnd('/')}/api/sync";
-        var response = await client.PostAsJsonAsync(endpoint, request, JsonOptions);
-        response.EnsureSuccessStatusCode();
+            var endpoint = $"{_offline.ApiBaseUrl.TrimEnd('/')}/api/sync";
+            var response = await client.PostAsJsonAsync(endpoint, request, JsonOptions);
+            response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<SyncResponse>(JsonOptions);
-        if (payload is null || !payload.Success)
-        {
-            throw new InvalidOperationException(payload?.Message ?? "Sync failed.");
+            var payload = await response.Content.ReadFromJsonAsync<SyncResponse>(JsonOptions);
+            if (payload is null || !payload.Success)
+            {
+                throw new InvalidOperationException(payload?.Message ?? "Sync failed.");
+            }
+
+            _offline.Store = payload.Store;
+            _offline.PendingOperations.Clear();
+            _offline.LastSyncUtc = payload.ServerUtc;
+
+            AddLocalLog("Sync", $"Synced {opCount} operation(s) successfully", "Info");
+            await PersistAndNotifyAsync();
         }
+        catch (Exception ex)
+        {
+            AddLocalLog("Error", $"Sync failed: {ex.Message}", "Error", ex.ToString());
+            await PersistAndNotifyAsync();
+            throw;
+        }
+    }
 
-        _offline.Store = payload.Store;
-        _offline.PendingOperations.Clear();
-        _offline.LastSyncUtc = payload.ServerUtc;
-        await PersistAndNotifyAsync();
+    private void AddLocalLog(string category, string message, string severity, string details = "")
+    {
+        _offline.Store.ActivityLog.Insert(0, new ActivityLogEntry
+        {
+            Category = category,
+            Message = message,
+            Severity = severity,
+            Details = details
+        });
+
+        if (_offline.Store.ActivityLog.Count > 200)
+            _offline.Store.ActivityLog.RemoveRange(200, _offline.Store.ActivityLog.Count - 200);
     }
 
     public async Task AddVehicleAsync(Vehicle vehicle)
@@ -277,6 +305,13 @@ public class WrenchWiseService
         existing.ServiceType = record.ServiceType;
         existing.ShopName = record.ShopName;
         existing.Notes = record.Notes;
+        existing.Parts = record.Parts?.Select(p => new ServicePart
+        {
+            Id = p.Id,
+            PartName = p.PartName,
+            PartNumber = p.PartNumber,
+            Cost = p.Cost
+        }).ToList() ?? new();
         existing.UpdatedUtc = DateTime.UtcNow;
 
         QueueUpsert(SyncOperationType.UpsertMaintenance, existing.Id, existing);
@@ -446,6 +481,8 @@ public class WrenchWiseService
         existing.ExpirationDate = doc.ExpirationDate;
         existing.PremiumCost = doc.PremiumCost;
         existing.Notes = doc.Notes;
+        existing.FilePath = doc.FilePath;
+        existing.FileName = doc.FileName;
         existing.UpdatedUtc = DateTime.UtcNow;
         
         QueueUpsert(SyncOperationType.UpsertDocument, existing.Id, existing);

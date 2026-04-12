@@ -1,0 +1,54 @@
+@page "/activity-log"
+@implements IDisposable
+@inject WrenchWiseService WrenchWise
+
+<PageTitle>Activity Log</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h5" Class="fw-bold">Activity Log</MudText>
+</div>
+
+@if (!WrenchWise.ActivityLog.Any())
+{
+    <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
+        <MudIcon Icon="@Icons.Material.Filled.EventNote" Size="Size.Large" Style="font-size: 4rem;" />
+        <MudText Typo="Typo.h6">No activity yet</MudText>
+        <MudText Typo="Typo.body2">Sync events, errors, and changes will appear here.</MudText>
+    </MudStack>
+}
+else
+{
+    <MudStack Spacing="2" Class="pb-16">
+        @foreach (var entry in WrenchWise.ActivityLog.OrderByDescending(x => x.TimestampUtc).Take(100))
+        {
+            <MudCard Elevation="1" Class="rounded-lg">
+                <MudCardContent Class="pa-3">
+                    <div class="d-flex justify-space-between align-center mb-1">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                 Color="@(entry.Severity == "Error" ? Color.Error : entry.Severity == "Warning" ? Color.Warning : Color.Default)">
+                            @entry.Category
+                        </MudChip>
+                        <MudText Typo="Typo.caption" Class="opacity-60">@entry.TimestampUtc.ToLocalTime().ToString("MMM d, h:mm tt")</MudText>
+                    </div>
+                    <MudText Typo="Typo.body2">@entry.Message</MudText>
+                    @if (!string.IsNullOrWhiteSpace(entry.Details))
+                    {
+                        <MudText Typo="Typo.caption" Class="opacity-50 mt-1" Style="white-space:pre-wrap; max-height:80px; overflow:hidden;">@(entry.Details.Length > 200 ? entry.Details[..200] + "..." : entry.Details)</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudStack>
+}
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await WrenchWise.InitializeAsync();
+        WrenchWise.Changed += HandleChanged;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => WrenchWise.Changed -= HandleChanged;
+}

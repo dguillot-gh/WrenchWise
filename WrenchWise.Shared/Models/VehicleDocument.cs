@@ -11,5 +11,7 @@ public class VehicleDocument
     public DateOnly? ExpirationDate { get; set; }
     public decimal PremiumCost { get; set; }
     public string Notes { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }

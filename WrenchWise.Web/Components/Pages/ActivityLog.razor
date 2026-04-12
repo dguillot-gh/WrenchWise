@@ -1,0 +1,106 @@
+@page "/activity-log"
+@inject WebDataService Data
+@implements IDisposable
+
+<PageTitle>Activity Log — WrenchWise</PageTitle>
+
+<MudText Typo="Typo.h5" Class="fw-bold mb-1">Activity Log</MudText>
+<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Recent sync events, errors, and system activity.</MudText>
+
+@if (!Data.IsLoaded)
+{
+    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="400px" Class="rounded-xl" />
+}
+else
+{
+    var logs = Data.Store!.ActivityLog;
+
+    <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-xl" Style="background:var(--mud-palette-surface);">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_search" Label="Search" Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" Variant="Variant.Outlined"
+                              Clearable="true" Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="string" @bind-Value="_severityFilter" Label="Severity" Variant="Variant.Outlined" Clearable="true">
+                    <MudSelectItem Value="@("Info")">Info</MudSelectItem>
+                    <MudSelectItem Value="@("Warning")">Warning</MudSelectItem>
+                    <MudSelectItem Value="@("Error")">Error</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center gap-2 flex-wrap">
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">@FilteredLogs.Count entries</MudChip>
+                @{ var errorCount = logs.Count(x => x.Severity == "Error"); }
+                @if (errorCount > 0)
+                {
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small">@errorCount error(s)</MudChip>
+                }
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @if (!FilteredLogs.Any())
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
+            <MudIcon Icon="@Icons.Material.Filled.EventNote" Style="font-size:4rem;" />
+            <MudText Typo="Typo.h6">No log entries</MudText>
+        </MudStack>
+    }
+    else
+    {
+        <MudTable Items="@FilteredLogs" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                  Class="rounded-xl" Elevation="3">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<ActivityLogEntry, object>(x => x.TimestampUtc)" InitialDirection="SortDirection.Descending">Time</MudTableSortLabel></MudTh>
+                <MudTh>Severity</MudTh>
+                <MudTh>Category</MudTh>
+                <MudTh>Message</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Time">@context.TimestampUtc.ToLocalTime().ToString("MMM d, h:mm tt")</MudTd>
+                <MudTd DataLabel="Severity">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                             Color="@(context.Severity == "Error" ? Color.Error : context.Severity == "Warning" ? Color.Warning : Color.Default)">
+                        @context.Severity
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Category">@context.Category</MudTd>
+                <MudTd DataLabel="Message">
+                    <MudText Typo="Typo.body2">@context.Message</MudText>
+                    @if (!string.IsNullOrWhiteSpace(context.Details))
+                    {
+                        <MudText Typo="Typo.caption" Class="opacity-50 d-block" Style="max-width:400px; white-space:pre-wrap; overflow:hidden; text-overflow:ellipsis;">@(context.Details.Length > 200 ? context.Details[..200] + "..." : context.Details)</MudText>
+                    }
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new[] { 25, 50, 100 }" />
+            </PagerContent>
+        </MudTable>
+    }
+}
+
+@using WrenchWise.Shared.Models
+
+@code {
+    private string _search = string.Empty;
+    private string? _severityFilter;
+
+    private List<ActivityLogEntry> FilteredLogs => Data.Store?.ActivityLog
+        .Where(x => (string.IsNullOrWhiteSpace(_severityFilter) || x.Severity == _severityFilter)
+                  && (string.IsNullOrWhiteSpace(_search)
+                      || x.Message.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                      || x.Category.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                      || x.Details.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        .OrderByDescending(x => x.TimestampUtc)
+        .ToList() ?? new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
+
+    public void Dispose() => Data.Changed -= StateHasChanged;
+}

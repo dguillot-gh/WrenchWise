@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Mail;
+using System.Text;
 using System.Text.Json;
 using WrenchWise.Backend.Data;
 using WrenchWise.Shared.Models;
@@ -34,40 +37,229 @@ app.MapGet("/api/store", async (WrenchWiseDbContext db) =>
     return Results.Ok(await BuildStoreAsync(db));
 });
 
-app.MapPost("/api/sync", async (SyncRequest request, WrenchWiseDbContext db) =>
+app.MapPost("/api/sync", async (SyncRequest request, WrenchWiseDbContext db, ILogger<Program> logger) =>
 {
     var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
-    foreach (var operation in request.PendingOperations.OrderBy(x => x.CreatedUtc))
+    try
     {
-        var alreadyApplied = await db.AppliedSyncOperations.AnyAsync(x => x.OperationId == operation.OperationId);
-        if (alreadyApplied)
+        foreach (var operation in request.PendingOperations.OrderBy(x => x.CreatedUtc))
         {
-            continue;
+            var alreadyApplied = await db.AppliedSyncOperations.AnyAsync(x => x.OperationId == operation.OperationId);
+            if (alreadyApplied)
+            {
+                continue;
+            }
+
+            await ApplyOperationAsync(operation, db, serializerOptions);
+            db.AppliedSyncOperations.Add(new AppliedSyncOperation
+            {
+                OperationId = operation.OperationId,
+                AppliedUtc = DateTime.UtcNow
+            });
         }
 
-        await ApplyOperationAsync(operation, db, serializerOptions);
-        db.AppliedSyncOperations.Add(new AppliedSyncOperation
+        if (request.PendingOperations.Count == 0 && request.FullStoreFallback is not null)
         {
-            OperationId = operation.OperationId,
-            AppliedUtc = DateTime.UtcNow
+            await ReplaceStoreFromFallbackAsync(request.FullStoreFallback, db);
+        }
+
+        await db.SaveChangesAsync();
+
+        if (request.PendingOperations.Count > 0)
+        {
+            db.ActivityLog.Add(new ActivityLogEntry
+            {
+                Category = "Sync",
+                Message = $"Synced {request.PendingOperations.Count} operation(s) from device {request.DeviceId}",
+                Severity = "Info"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        return Results.Ok(new SyncResponse
+        {
+            Success = true,
+            Message = "Sync complete.",
+            ServerUtc = DateTime.UtcNow,
+            Store = await BuildStoreAsync(db)
         });
     }
-
-    if (request.PendingOperations.Count == 0 && request.FullStoreFallback is not null)
+    catch (Exception ex)
     {
-        await ReplaceStoreFromFallbackAsync(request.FullStoreFallback, db);
+        logger.LogError(ex, "Sync failed for device {DeviceId}", request.DeviceId);
+
+        db.ChangeTracker.Clear();
+        db.ActivityLog.Add(new ActivityLogEntry
+        {
+            Category = "Error",
+            Message = $"Sync failed for device {request.DeviceId}",
+            Details = ex.ToString(),
+            Severity = "Error"
+        });
+        await db.SaveChangesAsync();
+
+        await TrySendErrorEmailAsync(app.Configuration, $"Sync Error — {ex.Message}", ex.ToString());
+
+        return Results.Json(new SyncResponse
+        {
+            Success = false,
+            Message = $"Sync error: {ex.Message}",
+            ServerUtc = DateTime.UtcNow,
+            Store = new WrenchWiseStore()
+        }, statusCode: 500);
+    }
+});
+
+app.MapGet("/api/activity-log", async (WrenchWiseDbContext db, int? limit) =>
+{
+    var count = limit ?? 100;
+    var entries = await db.ActivityLog
+        .AsNoTracking()
+        .OrderByDescending(x => x.TimestampUtc)
+        .Take(count)
+        .ToListAsync();
+    return Results.Ok(entries);
+});
+
+app.MapGet("/api/report/weekly", async (WrenchWiseDbContext db) =>
+{
+    var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-7));
+    var records = await db.MaintenanceRecords
+        .AsNoTracking()
+        .Where(x => x.ServiceDate >= cutoff)
+        .OrderByDescending(x => x.ServiceDate)
+        .ToListAsync();
+    var fuelRecords = await db.FuelRecords
+        .AsNoTracking()
+        .Where(x => x.FillDate >= cutoff)
+        .OrderByDescending(x => x.FillDate)
+        .ToListAsync();
+    var vehicles = await db.Vehicles.AsNoTracking().ToListAsync();
+
+    return Results.Ok(new
+    {
+        period = $"{cutoff:yyyy-MM-dd} to {DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}",
+        maintenanceCount = records.Count,
+        maintenanceCost = records.Sum(x => x.Cost),
+        fuelCount = fuelRecords.Count,
+        fuelCost = fuelRecords.Sum(x => x.TotalCost),
+        records = records.Select(r => new
+        {
+            r.ServiceDate,
+            r.ServiceType,
+            r.Cost,
+            r.ShopName,
+            r.Odometer,
+            vehicle = vehicles.FirstOrDefault(v => v.Id == r.VehicleId)?.Nickname ?? "Unknown"
+        }),
+        fuelRecords = fuelRecords.Select(f => new
+        {
+            f.FillDate,
+            f.Station,
+            f.TotalCost,
+            f.Gallons,
+            vehicle = vehicles.FirstOrDefault(v => v.Id == f.VehicleId)?.Nickname ?? "Unknown"
+        })
+    });
+});
+
+app.MapPost("/api/report/weekly/email", async (WrenchWiseDbContext db, IConfiguration config) =>
+{
+    var emailTo = config["Email:To"];
+    if (string.IsNullOrWhiteSpace(emailTo))
+        return Results.BadRequest(new { message = "Email:To not configured in appsettings." });
+
+    var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-7));
+    var records = await db.MaintenanceRecords.AsNoTracking().Where(x => x.ServiceDate >= cutoff).OrderByDescending(x => x.ServiceDate).ToListAsync();
+    var fuelRecords = await db.FuelRecords.AsNoTracking().Where(x => x.FillDate >= cutoff).OrderByDescending(x => x.FillDate).ToListAsync();
+    var vehicles = await db.Vehicles.AsNoTracking().ToListAsync();
+
+    var totalSpent = records.Sum(x => x.Cost) + fuelRecords.Sum(x => x.TotalCost);
+
+    var sb = new StringBuilder();
+    sb.AppendLine("<!DOCTYPE html><html><head><style>");
+    sb.AppendLine("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f4f5; color: #1e1e1e; padding: 20px; }");
+    sb.AppendLine(".container { max-width: 640px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }");
+    sb.AppendLine(".header { background: #1e293b; color: #38bdf8; padding: 24px 28px; }");
+    sb.AppendLine(".header h1 { margin: 0; font-size: 22px; } .header p { margin: 4px 0 0; color: #94a3b8; font-size: 13px; }");
+    sb.AppendLine(".body { padding: 24px 28px; }");
+    sb.AppendLine(".stat-row { display: flex; gap: 16px; margin-bottom: 20px; }");
+    sb.AppendLine(".stat { flex: 1; background: #f8fafc; border-radius: 8px; padding: 14px; text-align: center; }");
+    sb.AppendLine(".stat .num { font-size: 24px; font-weight: 700; color: #0f172a; } .stat .label { font-size: 12px; color: #64748b; margin-top: 2px; }");
+    sb.AppendLine("table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }");
+    sb.AppendLine("th { background: #f1f5f9; text-align: left; padding: 8px 10px; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }");
+    sb.AppendLine("td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }");
+    sb.AppendLine("tr:hover td { background: #f8fafc; }");
+    sb.AppendLine(".section-title { font-size: 15px; font-weight: 700; margin: 20px 0 6px; color: #1e293b; }");
+    sb.AppendLine(".footer { padding: 16px 28px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; }");
+    sb.AppendLine(".empty { color: #94a3b8; font-style: italic; padding: 12px 0; }");
+    sb.AppendLine("</style></head><body><div class='container'>");
+
+    sb.AppendLine("<div class='header'>");
+    sb.AppendLine("<h1>WrenchWise Weekly Report</h1>");
+    sb.AppendLine($"<p>{cutoff:MMMM d} — {DateOnly.FromDateTime(DateTime.Today):MMMM d, yyyy}</p>");
+    sb.AppendLine("</div>");
+
+    sb.AppendLine("<div class='body'>");
+
+    sb.AppendLine("<div class='stat-row'>");
+    sb.AppendLine($"<div class='stat'><div class='num'>{totalSpent:C}</div><div class='label'>Total Spent</div></div>");
+    sb.AppendLine($"<div class='stat'><div class='num'>{records.Count}</div><div class='label'>Services</div></div>");
+    sb.AppendLine($"<div class='stat'><div class='num'>{fuelRecords.Count}</div><div class='label'>Fill-ups</div></div>");
+    sb.AppendLine("</div>");
+
+    // Per-vehicle breakdown
+    var vehicleIds = records.Select(r => r.VehicleId).Union(fuelRecords.Select(f => f.VehicleId)).Distinct();
+    foreach (var vid in vehicleIds)
+    {
+        var v = vehicles.FirstOrDefault(x => x.Id == vid);
+        var vName = v != null ? $"{v.Nickname} ({v.Year} {v.Make} {v.Model})" : "Unknown";
+        var vMaint = records.Where(r => r.VehicleId == vid).Sum(r => r.Cost);
+        var vFuel = fuelRecords.Where(f => f.VehicleId == vid).Sum(f => f.TotalCost);
+        sb.AppendLine($"<div style='background:#f8fafc; border-radius:6px; padding:8px 12px; margin-bottom:6px; font-size:13px;'><b>{vName}</b> — Maintenance: {vMaint:C} · Fuel: {vFuel:C}</div>");
     }
 
-    await db.SaveChangesAsync();
-
-    return Results.Ok(new SyncResponse
+    if (records.Any())
     {
-        Success = true,
-        Message = "Sync complete.",
-        ServerUtc = DateTime.UtcNow,
-        Store = await BuildStoreAsync(db)
-    });
+        sb.AppendLine("<div class='section-title'>🔧 Service Records</div>");
+        sb.AppendLine("<table><tr><th>Date</th><th>Vehicle</th><th>Service</th><th>Shop</th><th style='text-align:right'>Cost</th></tr>");
+        foreach (var r in records)
+        {
+            var vn = vehicles.FirstOrDefault(v => v.Id == r.VehicleId)?.Nickname ?? "?";
+            sb.AppendLine($"<tr><td>{r.ServiceDate:MMM d}</td><td>{vn}</td><td>{r.ServiceType}</td><td>{r.ShopName}</td><td style='text-align:right'>{r.Cost:C}</td></tr>");
+        }
+        sb.AppendLine("</table>");
+    }
+    else
+    {
+        sb.AppendLine("<div class='empty'>No service records this week.</div>");
+    }
+
+    if (fuelRecords.Any())
+    {
+        sb.AppendLine("<div class='section-title'>⛽ Fuel Fill-ups</div>");
+        sb.AppendLine("<table><tr><th>Date</th><th>Vehicle</th><th>Station</th><th style='text-align:right'>Gallons</th><th style='text-align:right'>Cost</th></tr>");
+        foreach (var f in fuelRecords)
+        {
+            var vn = vehicles.FirstOrDefault(v => v.Id == f.VehicleId)?.Nickname ?? "?";
+            sb.AppendLine($"<tr><td>{f.FillDate:MMM d}</td><td>{vn}</td><td>{f.Station}</td><td style='text-align:right'>{f.Gallons:0.0}</td><td style='text-align:right'>{f.TotalCost:C}</td></tr>");
+        }
+        sb.AppendLine("</table>");
+    }
+    else
+    {
+        sb.AppendLine("<div class='empty'>No fuel fill-ups this week.</div>");
+    }
+
+    sb.AppendLine("</div>");
+    sb.AppendLine("<div class='footer'>Generated by WrenchWise · " + DateTime.UtcNow.ToString("MMM d, yyyy h:mm tt") + " UTC</div>");
+    sb.AppendLine("</div></body></html>");
+
+    var sent = await TrySendEmailAsync(config, emailTo, $"WrenchWise Weekly Report — {DateTime.Today:MMM d}", sb.ToString());
+    return sent
+        ? Results.Ok(new { message = "Weekly report email sent." })
+        : Results.Json(new { message = "Failed to send email. Check Email settings in appsettings." }, statusCode: 500);
 });
 
 app.MapDelete("/api/seed/reset", async (WrenchWiseDbContext db) =>
@@ -76,6 +268,9 @@ app.MapDelete("/api/seed/reset", async (WrenchWiseDbContext db) =>
     db.FuelRecords.RemoveRange(db.FuelRecords);
     db.MaintenanceRecords.RemoveRange(db.MaintenanceRecords);
     db.ServiceReminders.RemoveRange(db.ServiceReminders);
+    db.VehicleProjects.RemoveRange(db.VehicleProjects);
+    db.VehicleDocuments.RemoveRange(db.VehicleDocuments);
+    db.ActivityLog.RemoveRange(db.ActivityLog);
     db.Vehicles.RemoveRange(db.Vehicles);
     db.AppliedSyncOperations.RemoveRange(db.AppliedSyncOperations);
     await db.SaveChangesAsync();
@@ -92,7 +287,10 @@ static async Task<WrenchWiseStore> BuildStoreAsync(WrenchWiseDbContext db)
         MaintenanceRecords = await db.MaintenanceRecords.AsNoTracking().OrderByDescending(x => x.ServiceDate).ToListAsync(),
         FuelRecords = await db.FuelRecords.AsNoTracking().OrderByDescending(x => x.FillDate).ToListAsync(),
         ServiceReminders = await db.ServiceReminders.AsNoTracking().OrderBy(x => x.IsCompleted).ThenBy(x => x.Title).ToListAsync(),
-        TireRecords = await db.TireRecords.AsNoTracking().OrderByDescending(x => x.InstalledDate).ToListAsync()
+        TireRecords = await db.TireRecords.AsNoTracking().OrderByDescending(x => x.InstalledDate).ToListAsync(),
+        VehicleProjects = await db.VehicleProjects.AsNoTracking().OrderByDescending(x => x.UpdatedUtc).ToListAsync(),
+        VehicleDocuments = await db.VehicleDocuments.AsNoTracking().OrderByDescending(x => x.UpdatedUtc).ToListAsync(),
+        ActivityLog = await db.ActivityLog.AsNoTracking().OrderByDescending(x => x.TimestampUtc).Take(200).ToListAsync()
     };
 }
 
@@ -103,6 +301,8 @@ static async Task ReplaceStoreFromFallbackAsync(WrenchWiseStore fallback, Wrench
     db.FuelRecords.RemoveRange(db.FuelRecords);
     db.ServiceReminders.RemoveRange(db.ServiceReminders);
     db.TireRecords.RemoveRange(db.TireRecords);
+    db.VehicleProjects.RemoveRange(db.VehicleProjects);
+    db.VehicleDocuments.RemoveRange(db.VehicleDocuments);
     await db.SaveChangesAsync();
 
     db.Vehicles.AddRange(fallback.Vehicles);
@@ -110,6 +310,8 @@ static async Task ReplaceStoreFromFallbackAsync(WrenchWiseStore fallback, Wrench
     db.FuelRecords.AddRange(fallback.FuelRecords);
     db.ServiceReminders.AddRange(fallback.ServiceReminders);
     db.TireRecords.AddRange(fallback.TireRecords);
+    db.VehicleProjects.AddRange(fallback.VehicleProjects);
+    db.VehicleDocuments.AddRange(fallback.VehicleDocuments);
 }
 
 static Task ApplyOperationAsync(SyncOperation operation, WrenchWiseDbContext db, JsonSerializerOptions serializerOptions)
@@ -136,6 +338,14 @@ static Task ApplyOperationAsync(SyncOperation operation, WrenchWiseDbContext db,
             return UpsertReminderAsync(operation.PayloadJson, db, serializerOptions);
         case SyncOperationType.DeleteReminder:
             return DeleteReminderAsync(operation.EntityId, db);
+        case SyncOperationType.UpsertProject:
+            return UpsertProjectAsync(operation.PayloadJson, db, serializerOptions);
+        case SyncOperationType.DeleteProject:
+            return DeleteProjectAsync(operation.EntityId, db);
+        case SyncOperationType.UpsertDocument:
+            return UpsertDocumentAsync(operation.PayloadJson, db, serializerOptions);
+        case SyncOperationType.DeleteDocument:
+            return DeleteDocumentAsync(operation.EntityId, db);
         default:
             return Task.CompletedTask;
     }
@@ -279,6 +489,92 @@ static async Task DeleteTireAsync(Guid id, WrenchWiseDbContext db)
     if (tire is not null)
     {
         db.TireRecords.Remove(tire);
+    }
+}
+
+static async Task UpsertProjectAsync(string payloadJson, WrenchWiseDbContext db, JsonSerializerOptions serializerOptions)
+{
+    var incoming = JsonSerializer.Deserialize<VehicleProject>(payloadJson, serializerOptions);
+    if (incoming is null) return;
+
+    var existing = await db.VehicleProjects.FindAsync(incoming.Id);
+    if (existing is null)
+    {
+        db.VehicleProjects.Add(incoming);
+        return;
+    }
+
+    db.Entry(existing).CurrentValues.SetValues(incoming);
+}
+
+static async Task DeleteProjectAsync(Guid id, WrenchWiseDbContext db)
+{
+    var project = await db.VehicleProjects.FindAsync(id);
+    if (project is not null)
+    {
+        db.VehicleProjects.Remove(project);
+    }
+}
+
+static async Task UpsertDocumentAsync(string payloadJson, WrenchWiseDbContext db, JsonSerializerOptions serializerOptions)
+{
+    var incoming = JsonSerializer.Deserialize<VehicleDocument>(payloadJson, serializerOptions);
+    if (incoming is null) return;
+
+    var existing = await db.VehicleDocuments.FindAsync(incoming.Id);
+    if (existing is null)
+    {
+        db.VehicleDocuments.Add(incoming);
+        return;
+    }
+
+    db.Entry(existing).CurrentValues.SetValues(incoming);
+}
+
+static async Task DeleteDocumentAsync(Guid id, WrenchWiseDbContext db)
+{
+    var document = await db.VehicleDocuments.FindAsync(id);
+    if (document is not null)
+    {
+        db.VehicleDocuments.Remove(document);
+    }
+}
+
+static async Task TrySendErrorEmailAsync(IConfiguration config, string subject, string body)
+{
+    var errorTo = config["Email:ErrorTo"] ?? config["Email:To"];
+    if (string.IsNullOrWhiteSpace(errorTo)) return;
+    await TrySendEmailAsync(config, errorTo, $"[WrenchWise Error] {subject}", $"<pre>{body}</pre>");
+}
+
+static async Task<bool> TrySendEmailAsync(IConfiguration config, string to, string subject, string htmlBody)
+{
+    try
+    {
+        var host = config["Email:SmtpHost"];
+        var portStr = config["Email:SmtpPort"];
+        var from = config["Email:From"];
+        var user = config["Email:Username"];
+        var pass = config["Email:Password"];
+
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(from))
+            return false;
+
+        var port = int.TryParse(portStr, out var p) ? p : 587;
+
+        using var client = new SmtpClient(host, port)
+        {
+            EnableSsl = true,
+            Credentials = !string.IsNullOrWhiteSpace(user) ? new NetworkCredential(user, pass) : null
+        };
+
+        var message = new MailMessage(from, to, subject, htmlBody) { IsBodyHtml = true };
+        await client.SendMailAsync(message);
+        return true;
+    }
+    catch
+    {
+        return false;
     }
 }
 

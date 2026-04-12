@@ -6,6 +6,7 @@
 <PageTitle>Documents</PageTitle>
 
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <div class="d-flex align-center justify-space-between mb-4 mt-2">
     <MudText Typo="Typo.h5" Class="fw-bold">Vault</MudText>
@@ -15,7 +16,8 @@
     }
 </div>
 
-<MudCollapse Expanded="_showForm">
+@if (_showForm)
+{
     <MudCard Elevation="4" Class="mb-6 border-l-4 border-info">
         <MudCardHeader>
             <CardHeaderContent>
@@ -26,7 +28,7 @@
             </CardHeaderActions>
         </MudCardHeader>
         <MudCardContent>
-            <EditForm Model="_model" OnValidSubmit="SaveDocumentAsync">
+            <EditForm @key="_model.Id" Model="_model" OnValidSubmit="SaveDocumentAsync">
                 <DataAnnotationsValidator />
                 <MudGrid Spacing="2">
                     <MudItem xs="12">
@@ -64,6 +66,15 @@
                     <MudItem xs="12">
                         <MudTextField Label="Notes" @bind-Value="_model.Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
                     </MudItem>
+                    <MudItem xs="12">
+                        <div class="d-flex align-center gap-2">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AttachFile" Size="Size.Small" OnClick="AttachFileAsync">Attach File</MudButton>
+                            @if (!string.IsNullOrWhiteSpace(_model.FileName))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text" Icon="@Icons.Material.Filled.InsertDriveFile">@_model.FileName</MudChip>
+                            }
+                        </div>
+                    </MudItem>
                     
                     <MudItem xs="12" Class="d-flex justify-end gap-2 mt-2">
                         @if (_isEditing)
@@ -77,7 +88,7 @@
             </EditForm>
         </MudCardContent>
     </MudCard>
-</MudCollapse>
+}
 
 <MudText Typo="Typo.body2" Class="opacity-60 mb-6">Track insurance, registration, and inspections.</MudText>
 
@@ -184,8 +195,11 @@ else
         _isEditing = false;
     }
 
-    private void EditDocument(VehicleDocument d)
+    private async Task EditDocument(VehicleDocument d)
     {
+        _showForm = false;
+        await InvokeAsync(StateHasChanged);
+
         _model = new VehicleDocument
         {
             Id = d.Id,
@@ -196,12 +210,15 @@ else
             PremiumCost = d.PremiumCost,
             EffectiveDate = d.EffectiveDate,
             ExpirationDate = d.ExpirationDate,
-            Notes = d.Notes
+            Notes = d.Notes,
+            FilePath = d.FilePath,
+            FileName = d.FileName
         };
         _effectiveDate = d.EffectiveDate?.ToDateTime(TimeOnly.MinValue);
         _expirationDate = d.ExpirationDate?.ToDateTime(TimeOnly.MinValue);
         _isEditing = true;
         _showForm = true;
+        await JS.InvokeVoidAsync("eval", "document.querySelector('.mud-main-content')?.scrollTo(0,0)");
     }
 
     private async Task SaveDocumentAsync()
@@ -224,6 +241,30 @@ else
 
         _showForm = false;
         ResetForm();
+    }
+
+    private async Task AttachFileAsync()
+    {
+        try
+        {
+            var result = await FilePicker.PickAsync(new PickOptions
+            {
+                PickerTitle = "Select an invoice or receipt file"
+            });
+            if (result is null) return;
+
+            var destDir = Path.Combine(FileSystem.AppDataDirectory, "documents");
+            Directory.CreateDirectory(destDir);
+            var destPath = Path.Combine(destDir, $"{Guid.NewGuid():N}_{result.FileName}");
+
+            using var source = await result.OpenReadAsync();
+            using var dest = File.Create(destPath);
+            await source.CopyToAsync(dest);
+
+            _model.FilePath = destPath;
+            _model.FileName = result.FileName;
+        }
+        catch { }
     }
 
     private void HandleChanged()
