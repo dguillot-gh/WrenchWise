@@ -84,33 +84,109 @@
     </MudCardHeader>
     <MudCardContent Class="pt-0">
         <MudText Typo="Typo.body2" Class="mb-4 opacity-70">
-            Send a weekly summary of all maintenance and fuel records from the last 7 days to your configured email.
+            Send maintenance and fuel summaries to your configured email. Requires the backend server to be running.
         </MudText>
-        <div class="d-flex align-center">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.Send" OnClick="SendWeeklyReportAsync"
-                       Disabled="_isSendingReport">
-                @(_isSendingReport ? "Sending..." : "Send Weekly Report")
-            </MudButton>
-            @if (_isSendingReport)
-            {
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-3" />
-            }
-        </div>
+        <MudStack Spacing="2">
+            <div class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.CalendarViewWeek" OnClick="@(() => SendReportAsync("weekly", "Weekly"))"
+                           Disabled="_isSendingReport" Style="min-width: 180px;">
+                    Weekly Report
+                </MudButton>
+                <MudText Typo="Typo.caption" Class="ml-3 opacity-50">Last 7 days</MudText>
+            </div>
+            <div class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.CalendarMonth" OnClick="@(() => SendReportAsync("monthly", "Monthly"))"
+                           Disabled="_isSendingReport" Style="min-width: 180px;">
+                    Monthly Report
+                </MudButton>
+                <MudText Typo="Typo.caption" Class="ml-3 opacity-50">Last 30 days</MudText>
+            </div>
+            <div class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Info" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.CalendarToday" OnClick="@(() => SendReportAsync("yearly", "Yearly"))"
+                           Disabled="_isSendingReport" Style="min-width: 180px;">
+                    Yearly Report
+                </MudButton>
+                <MudText Typo="Typo.caption" Class="ml-3 opacity-50">Last 12 months</MudText>
+            </div>
+            <MudDivider Class="my-1" />
+            <div class="d-flex align-center">
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.AdminPanelSettings" OnClick="@(() => SendReportAsync("admin", "Admin"))"
+                           Disabled="_isSendingReport" Style="min-width: 180px;">
+                    Admin Report
+                </MudButton>
+                <MudText Typo="Typo.caption" Class="ml-3 opacity-50">All-time, grouped by vehicle</MudText>
+            </div>
+        </MudStack>
+        @if (_isSendingReport)
+        {
+            <div class="d-flex align-center mt-2">
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <MudText Typo="Typo.caption">Sending @_activeReportType report...</MudText>
+            </div>
+        }
     </MudCardContent>
 </MudCard>
 
-<MudStack AlignItems="AlignItems.Center" Spacing="1" Class="mt-12 mb-8 opacity-40">
-    <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Large" />
-    <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">WrenchWise Mobile</MudText>
-    <MudText Typo="Typo.caption">Version @Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString (Build @Microsoft.Maui.ApplicationModel.AppInfo.Current.BuildString)</MudText>
-</MudStack>
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">About WrenchWise</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <MudText Typo="Typo.body2" Class="mb-2 opacity-70">
+            WrenchWise is a personal vehicle maintenance tracker designed to keep all your automotive records organized in one place — offline-first with optional cloud sync.
+        </MudText>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1" Style="font-weight: 700;">Features</MudText>
+        <MudStack Spacing="0">
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Multi-vehicle garage management</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Service & maintenance record tracking with parts</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Fuel log with MPG calculations & receipt OCR</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Tire tracking with rotation history</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Service reminders & scheduling</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Project planning with cost estimates</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Document vault for insurance, registration & receipts</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; File attachment support for invoices & receipts</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Offline-first with queued sync to backend</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; CSV import/export & full JSON backup</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Weekly email reports</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; In-app activity log</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; Web dashboard companion app</MudText>
+        </MudStack>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1" Style="font-weight: 700;">Tech Stack</MudText>
+        <MudStack Spacing="0">
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>Mobile</b> — .NET MAUI Blazor Hybrid (Android, iOS, Windows)</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>Web</b> — Blazor Server (ASP.NET Core)</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>Backend</b> — ASP.NET Core Minimal API</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>Database</b> — PostgreSQL with EF Core</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>UI</b> — MudBlazor component library</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>Storage</b> — Local JSON (offline) + PostgreSQL (cloud)</MudText>
+            <MudText Typo="Typo.body2" Class="opacity-80">&#8226; <b>Hosting</b> — Docker (self-hosted)</MudText>
+        </MudStack>
+
+        <MudDivider Class="my-4" />
+        <MudStack AlignItems="AlignItems.Center" Spacing="1" Class="opacity-50">
+            <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">WrenchWise Mobile</MudText>
+            <MudText Typo="Typo.caption">Version @Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString (Build @Microsoft.Maui.ApplicationModel.AppInfo.Current.BuildString)</MudText>
+        </MudStack>
+    </MudCardContent>
+</MudCard>
 
 @code {
     private string _url = "";
     private bool _isTesting;
     private bool? _connectionSuccess;
     private bool _isSendingReport;
+    private string _activeReportType = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -166,7 +242,7 @@
         }
     }
 
-    private async Task SendWeeklyReportAsync()
+    private async Task SendReportAsync(string slug, string displayName)
     {
         if (string.IsNullOrWhiteSpace(WrenchWise.ApiBaseUrl))
         {
@@ -175,17 +251,18 @@
         }
 
         _isSendingReport = true;
+        _activeReportType = displayName;
         StateHasChanged();
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var endpoint = $"{WrenchWise.ApiBaseUrl.TrimEnd('/')}/api/report/weekly/email";
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+            var endpoint = $"{WrenchWise.ApiBaseUrl.TrimEnd('/')}/api/report/{slug}/email";
             var response = await client.PostAsync(endpoint, null);
 
             if (response.IsSuccessStatusCode)
             {
-                Snackbar.Add("Weekly report sent to your email!", Severity.Success);
+                Snackbar.Add($"{displayName} report sent to your email!", Severity.Success);
             }
             else
             {
