@@ -184,9 +184,23 @@
             var response = await client.PostAsync(endpoint, null);
 
             if (response.IsSuccessStatusCode)
+            {
                 Snackbar.Add("Weekly report sent to your email!", Severity.Success);
+            }
             else
-                Snackbar.Add("Failed to send report. Check server email settings.", Severity.Error);
+            {
+                try
+                {
+                    var body = await response.Content.ReadAsStringAsync();
+                    var json = System.Text.Json.JsonDocument.Parse(body);
+                    var msg = json.RootElement.GetProperty("message").GetString();
+                    Snackbar.Add(msg ?? body, Severity.Error);
+                }
+                catch
+                {
+                    Snackbar.Add($"Server returned {(int)response.StatusCode}", Severity.Error);
+                }
+            }
         }
         catch (Exception ex)
         {
