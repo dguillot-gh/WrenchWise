@@ -465,6 +465,8 @@ static async Task DeleteDocumentAsync(Guid id, WrenchWiseDbContext db)
     }
 }
 
+static string Usd(decimal amount) => $"${amount:N2}";
+
 static async Task<IResult> SendReportEmailAsync(WrenchWiseDbContext db, IConfiguration config, string reportType, string? periodLabel, DateOnly? cutoff)
 {
     var emailTo = config["Email:To"];
@@ -473,6 +475,8 @@ static async Task<IResult> SendReportEmailAsync(WrenchWiseDbContext db, IConfigu
 
     var vehicles = await db.Vehicles.AsNoTracking().ToListAsync();
     var tires = await db.TireRecords.AsNoTracking().ToListAsync();
+    var projects = await db.VehicleProjects.AsNoTracking().ToListAsync();
+    var documents = await db.VehicleDocuments.AsNoTracking().ToListAsync();
 
     List<WrenchWise.Shared.Models.MaintenanceRecord> records;
     List<WrenchWise.Shared.Models.FuelRecord> fuelRecords;
@@ -495,36 +499,39 @@ static async Task<IResult> SendReportEmailAsync(WrenchWiseDbContext db, IConfigu
 
     var sb = new StringBuilder();
     sb.AppendLine("<!DOCTYPE html><html><head><style>");
-    sb.AppendLine("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f4f5;color:#1e1e1e;padding:20px}");
-    sb.AppendLine(".container{max-width:700px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}");
-    sb.AppendLine(".header{background:#1e293b;color:#38bdf8;padding:24px 28px}");
-    sb.AppendLine(".header h1{margin:0;font-size:22px}.header p{margin:4px 0 0;color:#94a3b8;font-size:13px}");
-    sb.AppendLine(".body{padding:24px 28px}");
-    sb.AppendLine(".stat-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}");
-    sb.AppendLine(".stat{flex:1;min-width:100px;background:#f8fafc;border-radius:8px;padding:14px;text-align:center}");
-    sb.AppendLine(".stat .num{font-size:22px;font-weight:700;color:#0f172a}.stat .label{font-size:11px;color:#64748b;margin-top:2px}");
+    sb.AppendLine("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f4f5;color:#1e1e1e;padding:20px;margin:0}");
+    sb.AppendLine(".container{max-width:720px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}");
+    sb.AppendLine(".header{background:linear-gradient(135deg,#1e293b,#0f172a);color:#38bdf8;padding:28px 32px}");
+    sb.AppendLine(".header h1{margin:0;font-size:24px;letter-spacing:-0.5px}.header p{margin:6px 0 0;color:#94a3b8;font-size:13px}");
+    sb.AppendLine(".body{padding:28px 32px}");
+    sb.AppendLine(".stat-row{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap}");
+    sb.AppendLine(".stat{flex:1;min-width:90px;background:#f8fafc;border-radius:8px;padding:16px 10px;text-align:center;border:1px solid #e2e8f0}");
+    sb.AppendLine(".stat .num{font-size:20px;font-weight:700;color:#0f172a}.stat .label{font-size:10px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px}");
     sb.AppendLine("table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}");
-    sb.AppendLine("th{background:#f1f5f9;text-align:left;padding:7px 10px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0}");
-    sb.AppendLine("td{padding:7px 10px;border-bottom:1px solid #f1f5f9}");
-    sb.AppendLine(".section-title{font-size:15px;font-weight:700;margin:24px 0 6px;color:#1e293b}");
-    sb.AppendLine(".vehicle-header{background:#1e293b;color:#38bdf8;padding:12px 16px;border-radius:8px;margin:20px 0 10px;font-weight:700;font-size:14px}");
-    sb.AppendLine(".vehicle-stats{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}");
-    sb.AppendLine(".vehicle-stat{background:#f8fafc;border-radius:6px;padding:8px 14px;font-size:12px}");
-    sb.AppendLine(".footer{padding:16px 28px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #f1f5f9}");
+    sb.AppendLine("th{background:#f1f5f9;text-align:left;padding:8px 10px;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0;font-size:11px;text-transform:uppercase;letter-spacing:0.3px}");
+    sb.AppendLine("td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}");
+    sb.AppendLine("tr:nth-child(even) td{background:#fafbfc}");
+    sb.AppendLine(".notes{color:#64748b;font-size:11px;font-style:italic;margin-top:2px}");
+    sb.AppendLine(".section-title{font-size:15px;font-weight:700;margin:28px 0 8px;color:#1e293b;padding-bottom:6px;border-bottom:2px solid #38bdf8}");
+    sb.AppendLine(".vehicle-header{background:linear-gradient(135deg,#1e293b,#0f172a);color:#38bdf8;padding:14px 18px;border-radius:8px;margin:24px 0 12px;font-weight:700;font-size:15px}");
+    sb.AppendLine(".vehicle-stats{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}");
+    sb.AppendLine(".vehicle-stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 14px;font-size:12px}");
+    sb.AppendLine(".footer{padding:18px 32px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;background:#fafbfc}");
     sb.AppendLine(".empty{color:#94a3b8;font-style:italic;padding:12px 0}");
+    sb.AppendLine(".tag{display:inline-block;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}");
     sb.AppendLine("</style></head><body><div class='container'>");
 
     var title = isAdmin ? "WrenchWise Admin Report" : $"WrenchWise {reportType} Report";
-    var subtitle = isAdmin ? "All-Time Vehicle Summary" : periodLabel ?? "";
+    var subtitle = isAdmin ? "Complete Vehicle Summary — All Time" : periodLabel ?? "";
     sb.AppendLine($"<div class='header'><h1>{title}</h1><p>{subtitle}</p></div>");
 
     sb.AppendLine("<div class='body'>");
 
     // Summary stats
     sb.AppendLine("<div class='stat-row'>");
-    sb.AppendLine($"<div class='stat'><div class='num'>{totalSpent:C}</div><div class='label'>Total Spent</div></div>");
-    sb.AppendLine($"<div class='stat'><div class='num'>{totalMaint:C}</div><div class='label'>Maintenance</div></div>");
-    sb.AppendLine($"<div class='stat'><div class='num'>{totalFuel:C}</div><div class='label'>Fuel</div></div>");
+    sb.AppendLine($"<div class='stat'><div class='num'>{Usd(totalSpent)}</div><div class='label'>Total Spent</div></div>");
+    sb.AppendLine($"<div class='stat'><div class='num'>{Usd(totalMaint)}</div><div class='label'>Maintenance</div></div>");
+    sb.AppendLine($"<div class='stat'><div class='num'>{Usd(totalFuel)}</div><div class='label'>Fuel</div></div>");
     sb.AppendLine($"<div class='stat'><div class='num'>{records.Count}</div><div class='label'>Services</div></div>");
     sb.AppendLine($"<div class='stat'><div class='num'>{fuelRecords.Count}</div><div class='label'>Fill-ups</div></div>");
     sb.AppendLine($"<div class='stat'><div class='num'>{vehicles.Count}</div><div class='label'>Vehicles</div></div>");
@@ -532,42 +539,95 @@ static async Task<IResult> SendReportEmailAsync(WrenchWiseDbContext db, IConfigu
 
     if (isAdmin)
     {
-        // Admin: group everything by vehicle
         foreach (var v in vehicles)
         {
             var vName = !string.IsNullOrWhiteSpace(v.Nickname) ? $"{v.Nickname} — {v.Year} {v.Make} {v.Model}" : $"{v.Year} {v.Make} {v.Model}";
             var vRecords = records.Where(r => r.VehicleId == v.Id).ToList();
             var vFuel = fuelRecords.Where(f => f.VehicleId == v.Id).ToList();
             var vTires = tires.Where(t => t.VehicleId == v.Id).ToList();
+            var vProjects = projects.Where(p => p.VehicleId == v.Id).ToList();
+            var vDocs = documents.Where(d => d.VehicleId == v.Id).ToList();
             var vMaintCost = vRecords.Sum(r => r.Cost);
             var vFuelCost = vFuel.Sum(f => f.TotalCost);
             var vTotalGallons = vFuel.Sum(f => f.Gallons);
 
             sb.AppendLine($"<div class='vehicle-header'>{vName}</div>");
             sb.AppendLine("<div class='vehicle-stats'>");
-            sb.AppendLine($"<div class='vehicle-stat'><b>Maintenance:</b> {vMaintCost:C} ({vRecords.Count} services)</div>");
-            sb.AppendLine($"<div class='vehicle-stat'><b>Fuel:</b> {vFuelCost:C} ({vFuel.Count} fill-ups, {vTotalGallons:0.0} gal)</div>");
-            sb.AppendLine($"<div class='vehicle-stat'><b>Tires:</b> {vTires.Count} sets tracked</div>");
-            sb.AppendLine($"<div class='vehicle-stat'><b>Total:</b> {vMaintCost + vFuelCost:C}</div>");
+            sb.AppendLine($"<div class='vehicle-stat'><b>Maintenance:</b> {Usd(vMaintCost)} ({vRecords.Count} services)</div>");
+            sb.AppendLine($"<div class='vehicle-stat'><b>Fuel:</b> {Usd(vFuelCost)} ({vFuel.Count} fill-ups, {vTotalGallons:N1} gal)</div>");
+            sb.AppendLine($"<div class='vehicle-stat'><b>Tires:</b> {vTires.Count} sets</div>");
+            sb.AppendLine($"<div class='vehicle-stat'><b>Projects:</b> {vProjects.Count}</div>");
+            sb.AppendLine($"<div class='vehicle-stat'><b>Documents:</b> {vDocs.Count}</div>");
+            sb.AppendLine($"<div class='vehicle-stat'><b>Grand Total:</b> {Usd(vMaintCost + vFuelCost)}</div>");
             sb.AppendLine("</div>");
 
             if (vRecords.Any())
             {
-                sb.AppendLine("<table><tr><th>Date</th><th>Service</th><th>Shop</th><th style='text-align:right'>Cost</th></tr>");
+                sb.AppendLine("<table><tr><th>Date</th><th>Service</th><th>Shop</th><th>Odometer</th><th style='text-align:right'>Cost</th><th>Parts</th><th>Notes</th></tr>");
                 foreach (var r in vRecords)
-                    sb.AppendLine($"<tr><td>{r.ServiceDate:MMM d, yyyy}</td><td>{r.ServiceType}</td><td>{r.ShopName}</td><td style='text-align:right'>{r.Cost:C}</td></tr>");
+                {
+                    var notes = string.IsNullOrWhiteSpace(r.Notes) ? "" : r.Notes;
+                    var odo = r.Odometer > 0 ? $"{r.Odometer:N0} mi" : "";
+                    var parts = r.Parts != null && r.Parts.Any()
+                        ? string.Join("<br/>", r.Parts.Select(p => $"{p.PartName}{(string.IsNullOrWhiteSpace(p.PartNumber) ? "" : $" #{p.PartNumber}")} — {Usd(p.Cost)}"))
+                        : "";
+                    sb.AppendLine($"<tr><td>{r.ServiceDate:MMM d, yyyy}</td><td>{r.ServiceType}</td><td>{r.ShopName}</td><td>{odo}</td><td style='text-align:right'>{Usd(r.Cost)}</td><td><div class='notes'>{parts}</div></td><td><div class='notes'>{notes}</div></td></tr>");
+                }
                 sb.AppendLine("</table>");
             }
 
             if (vFuel.Any())
             {
-                sb.AppendLine("<table style='margin-top:10px'><tr><th>Date</th><th>Station</th><th style='text-align:right'>Gallons</th><th style='text-align:right'>Cost</th></tr>");
+                sb.AppendLine("<table style='margin-top:12px'><tr><th>Date</th><th>Station</th><th>Grade</th><th style='text-align:right'>Gallons</th><th style='text-align:right'>Cost</th><th>Notes</th></tr>");
                 foreach (var f in vFuel)
-                    sb.AppendLine($"<tr><td>{f.FillDate:MMM d, yyyy}</td><td>{f.Station}</td><td style='text-align:right'>{f.Gallons:0.0}</td><td style='text-align:right'>{f.TotalCost:C}</td></tr>");
+                {
+                    var grade = string.IsNullOrWhiteSpace(f.FuelGrade) ? "" : f.FuelGrade;
+                    var notes = string.IsNullOrWhiteSpace(f.AdditiveNotes) ? "" : f.AdditiveNotes;
+                    sb.AppendLine($"<tr><td>{f.FillDate:MMM d, yyyy}</td><td>{f.Station}</td><td>{grade}</td><td style='text-align:right'>{f.Gallons:N1}</td><td style='text-align:right'>{Usd(f.TotalCost)}</td><td><div class='notes'>{notes}</div></td></tr>");
+                }
                 sb.AppendLine("</table>");
             }
 
-            if (!vRecords.Any() && !vFuel.Any())
+            if (vTires.Any())
+            {
+                sb.AppendLine("<table style='margin-top:12px'><tr><th>Tire</th><th>Installed</th><th>Removed</th><th>Odometer</th><th style='text-align:right'>Cost</th><th>Notes</th></tr>");
+                foreach (var t in vTires)
+                {
+                    var removed = t.RemovedDate.HasValue ? t.RemovedDate.Value.ToString("MMM d, yyyy") : "Active";
+                    var odo = t.InstalledOdometer > 0 ? $"{t.InstalledOdometer:N0} mi" : "";
+                    var notes = string.IsNullOrWhiteSpace(t.Notes) ? "" : t.Notes;
+                    sb.AppendLine($"<tr><td>{t.BrandModel}</td><td>{t.InstalledDate:MMM d, yyyy}</td><td>{removed}</td><td>{odo}</td><td style='text-align:right'>{Usd(t.PurchaseCost)}</td><td><div class='notes'>{notes}</div></td></tr>");
+                }
+                sb.AppendLine("</table>");
+            }
+
+            if (vProjects.Any())
+            {
+                sb.AppendLine("<table style='margin-top:12px'><tr><th>Project</th><th>Status</th><th>Target</th><th style='text-align:right'>Est.</th><th style='text-align:right'>Actual</th><th>Description</th></tr>");
+                foreach (var p in vProjects)
+                {
+                    var target = p.TargetDate.HasValue ? p.TargetDate.Value.ToString("MMM d, yyyy") : "";
+                    var desc = string.IsNullOrWhiteSpace(p.Description) ? "" : p.Description;
+                    var status = string.IsNullOrWhiteSpace(p.Status) ? "" : p.Status;
+                    sb.AppendLine($"<tr><td><b>{p.Title}</b></td><td><span class='tag'>{status}</span></td><td>{target}</td><td style='text-align:right'>{Usd(p.EstimatedCost)}</td><td style='text-align:right'>{Usd(p.ActualCost)}</td><td><div class='notes'>{desc}</div></td></tr>");
+                }
+                sb.AppendLine("</table>");
+            }
+
+            if (vDocs.Any())
+            {
+                sb.AppendLine("<table style='margin-top:12px'><tr><th>Document</th><th>Provider</th><th>Policy #</th><th>Effective</th><th>Expires</th><th>Notes</th></tr>");
+                foreach (var d in vDocs)
+                {
+                    var eff = d.EffectiveDate.HasValue ? d.EffectiveDate.Value.ToString("MMM d, yyyy") : "";
+                    var exp = d.ExpirationDate.HasValue ? d.ExpirationDate.Value.ToString("MMM d, yyyy") : "";
+                    var notes = string.IsNullOrWhiteSpace(d.Notes) ? "" : d.Notes;
+                    sb.AppendLine($"<tr><td><b>{d.DocumentType}</b></td><td>{d.Provider}</td><td>{d.PolicyNumber}</td><td>{eff}</td><td>{exp}</td><td><div class='notes'>{notes}</div></td></tr>");
+                }
+                sb.AppendLine("</table>");
+            }
+
+            if (!vRecords.Any() && !vFuel.Any() && !vTires.Any() && !vProjects.Any() && !vDocs.Any())
                 sb.AppendLine("<div class='empty'>No records for this vehicle.</div>");
         }
     }
@@ -581,17 +641,21 @@ static async Task<IResult> SendReportEmailAsync(WrenchWiseDbContext db, IConfigu
             var vName = v != null ? $"{v.Nickname} ({v.Year} {v.Make} {v.Model})" : "Unknown";
             var vMaint = records.Where(r => r.VehicleId == vid).Sum(r => r.Cost);
             var vFuel = fuelRecords.Where(f => f.VehicleId == vid).Sum(f => f.TotalCost);
-            sb.AppendLine($"<div style='background:#f8fafc;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:13px'><b>{vName}</b> — Maintenance: {vMaint:C} · Fuel: {vFuel:C}</div>");
+            sb.AppendLine($"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:6px;font-size:13px'><b>{vName}</b> — Maintenance: {Usd(vMaint)} · Fuel: {Usd(vFuel)}</div>");
         }
 
         if (records.Any())
         {
-            sb.AppendLine("<div class='section-title'>🔧 Service Records</div>");
-            sb.AppendLine("<table><tr><th>Date</th><th>Vehicle</th><th>Service</th><th>Shop</th><th style='text-align:right'>Cost</th></tr>");
+            sb.AppendLine("<div class='section-title'>Service Records</div>");
+            sb.AppendLine("<table><tr><th>Date</th><th>Vehicle</th><th>Service</th><th>Shop</th><th style='text-align:right'>Cost</th><th>Parts</th><th>Notes</th></tr>");
             foreach (var r in records)
             {
                 var vn = vehicles.FirstOrDefault(v => v.Id == r.VehicleId)?.Nickname ?? "?";
-                sb.AppendLine($"<tr><td>{r.ServiceDate:MMM d}</td><td>{vn}</td><td>{r.ServiceType}</td><td>{r.ShopName}</td><td style='text-align:right'>{r.Cost:C}</td></tr>");
+                var notes = string.IsNullOrWhiteSpace(r.Notes) ? "" : r.Notes;
+                var parts = r.Parts != null && r.Parts.Any()
+                    ? string.Join("<br/>", r.Parts.Select(p => $"{p.PartName}{(string.IsNullOrWhiteSpace(p.PartNumber) ? "" : $" #{p.PartNumber}")} — {Usd(p.Cost)}"))
+                    : "";
+                sb.AppendLine($"<tr><td>{r.ServiceDate:MMM d}</td><td>{vn}</td><td>{r.ServiceType}</td><td>{r.ShopName}</td><td style='text-align:right'>{Usd(r.Cost)}</td><td><div class='notes'>{parts}</div></td><td><div class='notes'>{notes}</div></td></tr>");
             }
             sb.AppendLine("</table>");
         }
@@ -599,12 +663,13 @@ static async Task<IResult> SendReportEmailAsync(WrenchWiseDbContext db, IConfigu
 
         if (fuelRecords.Any())
         {
-            sb.AppendLine("<div class='section-title'>⛽ Fuel Fill-ups</div>");
-            sb.AppendLine("<table><tr><th>Date</th><th>Vehicle</th><th>Station</th><th style='text-align:right'>Gallons</th><th style='text-align:right'>Cost</th></tr>");
+            sb.AppendLine("<div class='section-title'>Fuel Fill-ups</div>");
+            sb.AppendLine("<table><tr><th>Date</th><th>Vehicle</th><th>Station</th><th style='text-align:right'>Gallons</th><th style='text-align:right'>Cost</th><th>Notes</th></tr>");
             foreach (var f in fuelRecords)
             {
                 var vn = vehicles.FirstOrDefault(v => v.Id == f.VehicleId)?.Nickname ?? "?";
-                sb.AppendLine($"<tr><td>{f.FillDate:MMM d}</td><td>{vn}</td><td>{f.Station}</td><td style='text-align:right'>{f.Gallons:0.0}</td><td style='text-align:right'>{f.TotalCost:C}</td></tr>");
+                var notes = string.IsNullOrWhiteSpace(f.AdditiveNotes) ? "" : f.AdditiveNotes;
+                sb.AppendLine($"<tr><td>{f.FillDate:MMM d}</td><td>{vn}</td><td>{f.Station}</td><td style='text-align:right'>{f.Gallons:N1}</td><td style='text-align:right'>{Usd(f.TotalCost)}</td><td><div class='notes'>{notes}</div></td></tr>");
             }
             sb.AppendLine("</table>");
         }
