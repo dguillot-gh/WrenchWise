@@ -6,6 +6,8 @@
 <PageTitle>Projects</PageTitle>
 
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
 <div class="d-flex align-center justify-space-between mb-4 mt-2">
     <MudText Typo="Typo.h5" Class="fw-bold">Projects</MudText>
     @if (WrenchWise.Vehicles.Any())
@@ -14,7 +16,8 @@
     }
 </div>
 
-<MudCollapse Expanded="_showForm">
+@if (_showForm)
+{
     <MudCard Elevation="4" Class="mb-6 border-l-4 border-warning">
         <MudCardHeader>
             <CardHeaderContent>
@@ -25,7 +28,7 @@
             </CardHeaderActions>
         </MudCardHeader>
         <MudCardContent>
-            <EditForm Model="_model" OnValidSubmit="SaveProjectAsync">
+            <EditForm @key="_model.Id" Model="_model" OnValidSubmit="SaveProjectAsync">
                 <DataAnnotationsValidator />
                 <MudGrid Spacing="2">
                     <MudItem xs="12">
@@ -71,7 +74,7 @@
             </EditForm>
         </MudCardContent>
     </MudCard>
-</MudCollapse>
+}
 
 <MudText Typo="Typo.body2" Class="opacity-60 mb-6">Plan and budget upcoming major work for your vehicles.</MudText>
 
@@ -169,8 +172,11 @@ else
         _isEditing = false;
     }
 
-    private void EditProject(VehicleProject p)
+    private async Task EditProject(VehicleProject p)
     {
+        _showForm = false;
+        await InvokeAsync(StateHasChanged);
+
         _model = new VehicleProject
         {
             Id = p.Id,
@@ -185,6 +191,7 @@ else
         _targetDate = p.TargetDate?.ToDateTime(TimeOnly.MinValue);
         _isEditing = true;
         _showForm = true;
+        await JS.InvokeVoidAsync("eval", "document.querySelector('.mud-main-content')?.scrollTo(0,0)");
     }
 
     private async Task SaveProjectAsync()

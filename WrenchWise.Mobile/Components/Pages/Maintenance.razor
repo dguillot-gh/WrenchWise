@@ -3,6 +3,7 @@
 @inject WrenchWiseService WrenchWise
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Service</PageTitle>
 
@@ -25,7 +26,8 @@
 }
 else
 {
-    <MudCollapse Expanded="_showForm">
+    @if (_showForm)
+    {
         <MudCard Elevation="4" Class="mb-6 border-l-4 border-warning">
             <MudCardHeader>
                 <CardHeaderAvatar>
@@ -47,7 +49,7 @@ else
                     }
                 </MudChipSet>
 
-                <EditForm Model="_record" OnValidSubmit="SaveRecordAsync">
+                <EditForm @key="_record.Id" Model="_record" OnValidSubmit="SaveRecordAsync">
                     <DataAnnotationsValidator />
                     <MudGrid Spacing="2">
                         <MudItem xs="12" sm="6">
@@ -107,7 +109,7 @@ else
                 </EditForm>
             </MudCardContent>
         </MudCard>
-    </MudCollapse>
+    }
 
     <MudExpansionPanels Class="mb-4">
         <MudExpansionPanel Text="Filter Records" Icon="@Icons.Material.Filled.FilterList">
@@ -344,8 +346,11 @@ else
         _isEditing = false;
     }
     
-    private void EditRecord(MaintenanceRecord record)
+    private async Task EditRecord(MaintenanceRecord record)
     {
+        _showForm = false;
+        await InvokeAsync(StateHasChanged);
+
         _record = new MaintenanceRecord
         {
             Id = record.Id,
@@ -362,6 +367,7 @@ else
         _isEditing = true;
         _showForm = true;
         _showAdvanced = !string.IsNullOrWhiteSpace(record.ShopName) || !string.IsNullOrWhiteSpace(record.Notes) || (record.Parts?.Any() == true);
+        await JS.InvokeVoidAsync("eval", "document.querySelector('.mud-main-content')?.scrollTo(0,0)");
     }
     
     private void ResetRecord()

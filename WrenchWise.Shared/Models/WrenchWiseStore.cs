@@ -9,4 +9,5 @@ public class WrenchWiseStore
     public List<TireRecord> TireRecords { get; set; } = [];
     public List<VehicleProject> VehicleProjects { get; set; } = [];
     public List<VehicleDocument> VehicleDocuments { get; set; } = [];
+    public List<ActivityLogEntry> ActivityLog { get; set; } = [];
 }

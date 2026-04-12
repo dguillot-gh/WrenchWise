@@ -73,6 +73,33 @@
     </MudCardContent>
 </MudCard>
 
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Email" Class="mr-2 opacity-60" />
+                <MudText Typo="Typo.subtitle1">Email Reports</MudText>
+            </div>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent Class="pt-0">
+        <MudText Typo="Typo.body2" Class="mb-4 opacity-70">
+            Send a weekly summary of all maintenance and fuel records from the last 7 days to your configured email.
+        </MudText>
+        <div class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Send" OnClick="SendWeeklyReportAsync"
+                       Disabled="_isSendingReport">
+                @(_isSendingReport ? "Sending..." : "Send Weekly Report")
+            </MudButton>
+            @if (_isSendingReport)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-3" />
+            }
+        </div>
+    </MudCardContent>
+</MudCard>
+
 <MudStack AlignItems="AlignItems.Center" Spacing="1" Class="mt-12 mb-8 opacity-40">
     <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Large" />
     <MudText Typo="Typo.subtitle2" Style="font-weight: 700;">WrenchWise Mobile</MudText>
@@ -83,6 +110,7 @@
     private string _url = "";
     private bool _isTesting;
     private bool? _connectionSuccess;
+    private bool _isSendingReport;
 
     protected override async Task OnInitializedAsync()
     {
@@ -135,6 +163,39 @@
                 Title = "WrenchWise Full Backup",
                 File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(path)
             });
+        }
+    }
+
+    private async Task SendWeeklyReportAsync()
+    {
+        if (string.IsNullOrWhiteSpace(WrenchWise.ApiBaseUrl))
+        {
+            Snackbar.Add("Set the server URL first.", Severity.Warning);
+            return;
+        }
+
+        _isSendingReport = true;
+        StateHasChanged();
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var endpoint = $"{WrenchWise.ApiBaseUrl.TrimEnd('/')}/api/report/weekly/email";
+            var response = await client.PostAsync(endpoint, null);
+
+            if (response.IsSuccessStatusCode)
+                Snackbar.Add("Weekly report sent to your email!", Severity.Success);
+            else
+                Snackbar.Add("Failed to send report. Check server email settings.", Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSendingReport = false;
+            StateHasChanged();
         }
     }
 }

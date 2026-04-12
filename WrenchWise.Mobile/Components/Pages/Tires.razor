@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject WrenchWiseService WrenchWise
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Tires</PageTitle>
 
@@ -28,7 +29,8 @@
 }
 else
 {
-    <MudCollapse Expanded="_showForm">
+    @if (_showForm)
+    {
         <MudCard Elevation="2" Class="mb-6 border-l-4 border-solid" Style="border-left-color: var(--mud-palette-primary);">
             <MudCardHeader>
                 <CardHeaderContent>
@@ -69,7 +71,7 @@ else
                 </MudGrid>
             </MudCardContent>
         </MudCard>
-    </MudCollapse>
+    }
 
     @if (WrenchWise.TireRecords.Count == 0)
     {
@@ -226,8 +228,11 @@ else
         }
     }
 
-    private void EditRecord(TireRecord record)
+    private async Task EditRecord(TireRecord record)
     {
+        _showForm = false;
+        await InvokeAsync(StateHasChanged);
+
         _record = new TireRecord
         {
             Id = record.Id,
@@ -240,11 +245,12 @@ else
             RemovedOdometer = record.RemovedOdometer,
             PurchaseCost = record.PurchaseCost,
             Notes = record.Notes,
-            Rotations = record.Rotations
+            Rotations = record.Rotations?.Select(r => new TireRotation { Id = r.Id, Date = r.Date, Odometer = r.Odometer }).ToList() ?? new()
         };
         _installDate = record.InstalledDate.ToDateTime(TimeOnly.MinValue);
         _isEditing = true;
         _showForm = true;
+        await JS.InvokeVoidAsync("eval", "document.querySelector('.mud-main-content')?.scrollTo(0,0)");
     }
 
     private async Task SaveRecordAsync()
