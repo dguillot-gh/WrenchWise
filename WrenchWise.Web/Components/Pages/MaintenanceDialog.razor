@@ -1,0 +1,72 @@
+@using WrenchWise.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudSelect T="Guid" @bind-Value="Model.VehicleId" Label="Vehicle" Variant="Variant.Outlined"
+                       Required="true" RequiredError="Vehicle is required" Class="mb-3">
+                @foreach (var v in Vehicles)
+                {
+                    <MudSelectItem T="Guid" Value="v.Id">@v.Nickname (@v.Year @v.Make @v.Model)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="Model.ServiceType" Label="Service Type" Variant="Variant.Outlined"
+                          Required="true" RequiredError="Service type is required" Class="mb-3"
+                          Placeholder="e.g. Oil Change, Brake Pads, Tire Rotation" />
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="_serviceDate" Label="Service Date" Variant="Variant.Outlined"
+                                   Required="true" RequiredError="Date is required" PickerVariant="PickerVariant.Dialog" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.Odometer" Label="Odometer (mi)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.Cost" Label="Cost ($)" Variant="Variant.Outlined"
+                                     Format="N2" Min="0m" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="Model.ShopName" Label="Shop / Location" Variant="Variant.Outlined"
+                                  Placeholder="e.g. Jiffy Lube, DIY" />
+                </MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="Model.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsNew ? "Add Record" : "Save Changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public MaintenanceRecord Model { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<Vehicle> Vehicles { get; set; } = new();
+
+    private MudForm _form = default!;
+    private DateTime? _serviceDate;
+
+    protected override void OnInitialized()
+    {
+        _serviceDate = Model.ServiceDate.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            if (_serviceDate.HasValue)
+                Model.ServiceDate = DateOnly.FromDateTime(_serviceDate.Value);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}

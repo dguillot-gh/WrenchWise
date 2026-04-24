@@ -1,0 +1,86 @@
+@using WrenchWise.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudSelect T="Guid" @bind-Value="Model.VehicleId" Label="Vehicle" Variant="Variant.Outlined"
+                       Required="true" RequiredError="Vehicle is required" Class="mb-3">
+                @foreach (var v in Vehicles)
+                {
+                    <MudSelectItem T="Guid" Value="v.Id">@v.Nickname (@v.Year @v.Make @v.Model)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="_fillDate" Label="Fill Date" Variant="Variant.Outlined"
+                                   Required="true" RequiredError="Date is required" PickerVariant="PickerVariant.Dialog" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.Odometer" Label="Odometer (mi)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="4">
+                    <MudNumericField @bind-Value="Model.Gallons" Label="Gallons" Variant="Variant.Outlined" Format="N2" Min="0m" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudNumericField @bind-Value="Model.TotalCost" Label="Total ($)" Variant="Variant.Outlined" Format="N2" Min="0m" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudNumericField @bind-Value="Model.TripMiles" Label="Trip Miles" Variant="Variant.Outlined" Format="N0" Min="0.0" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="Model.Station" Label="Station" Variant="Variant.Outlined"
+                                  Placeholder="e.g. Shell, Costco" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudSelect T="string" @bind-Value="Model.FuelGrade" Label="Fuel Grade" Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@("Regular")">Regular</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Midgrade")">Midgrade</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Premium")">Premium</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Diesel")">Diesel</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("E85")">E85</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+            <MudCheckBox @bind-Value="Model.FullTank" Label="Full tank" Color="Color.Primary" Class="mb-3" />
+            <MudTextField @bind-Value="Model.AdditiveNotes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsNew ? "Add Fill-up" : "Save Changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public FuelRecord Model { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<Vehicle> Vehicles { get; set; } = new();
+
+    private MudForm _form = default!;
+    private DateTime? _fillDate;
+
+    protected override void OnInitialized()
+    {
+        _fillDate = Model.FillDate.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            if (_fillDate.HasValue)
+                Model.FillDate = DateOnly.FromDateTime(_fillDate.Value);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}

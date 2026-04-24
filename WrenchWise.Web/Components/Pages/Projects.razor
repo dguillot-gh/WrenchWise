@@ -1,5 +1,7 @@
 @page "/projects"
 @inject WebDataService Data
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>Projects — WrenchWise</PageTitle>
@@ -9,6 +11,11 @@
         <MudText Typo="Typo.h5" Class="fw-bold">Vehicle Projects</MudText>
         <MudText Typo="Typo.body2" Class="opacity-60">Plan and track your major upgrades & repairs.</MudText>
     </div>
+    @if (Data.IsLoaded)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditor(null))" Class="rounded-lg">Add Project</MudButton>
+    }
 </div>
 
 @if (!Data.IsLoaded)
@@ -27,9 +34,11 @@ else
     var projects = Data.Store!.VehicleProjects.OrderByDescending(x => x.UpdatedUtc).ToList();
     if (!projects.Any())
     {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="rounded-xl">
-            No projects found. Use the mobile app to create your first vehicle project!
-        </MudAlert>
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
+            <MudIcon Icon="@Icons.Material.Filled.Engineering" Style="font-size:4rem;" />
+            <MudText Typo="Typo.h6">No projects yet</MudText>
+            <MudText Typo="Typo.body2">Click "Add Project" to create one.</MudText>
+        </MudStack>
     }
     else
     {
@@ -76,6 +85,13 @@ else
                                 </div>
                             }
                         </MudCardContent>
+                        <MudCardActions Class="px-4 pb-3">
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => OpenEditor(p))">Edit</MudButton>
+                            <MudSpacer />
+                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.Delete"
+                                       OnClick="@(() => ConfirmDelete(p))">Delete</MudButton>
+                        </MudCardActions>
                     </MudCard>
                 </MudItem>
             }
@@ -83,11 +99,63 @@ else
     }
 }
 
+@using WrenchWise.Shared.Models
+
 @code {
-    protected override async Task OnInitializedAsync()
+    private async Task OpenEditor(VehicleProject? existing)
     {
-        Data.Changed += StateHasChanged;
-        await Data.InitializeAsync();
+        var isNew = existing is null;
+        var model = isNew
+            ? new VehicleProject
+            {
+                VehicleId = Data.Store?.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+            }
+            : new VehicleProject
+            {
+                Id = existing!.Id,
+                VehicleId = existing.VehicleId,
+                Title = existing.Title,
+                Description = existing.Description,
+                EstimatedCost = existing.EstimatedCost,
+                ActualCost = existing.ActualCost,
+                TargetDate = existing.TargetDate,
+                Status = existing.Status
+            };
+
+        var parameters = new DialogParameters<ProjectDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsNew, isNew },
+            { x => x.Vehicles, Data.Store?.Vehicles ?? new() }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<ProjectDialog>(isNew ? "Add Project" : "Edit Project", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var saved = await Data.SaveProjectAsync(model);
+            Snackbar.Add(saved ? "Project saved!" : "Failed to save.", saved ? Severity.Success : Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(VehicleProject project)
+    {
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Project",
+            new DialogParameters<MudMessageBox>
+            {
+                { x => x.Message, $"Delete project \"{project.Title}\"?" },
+                { x => x.YesText, "Delete" },
+                { x => x.CancelText, "Cancel" }
+            });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var deleted = await Data.DeleteProjectAsync(project.Id);
+            Snackbar.Add(deleted ? "Project deleted." : "Failed to delete.", deleted ? Severity.Success : Severity.Error);
+        }
     }
 
     private Color GetStatusColor(string status) => status switch
@@ -97,6 +165,12 @@ else
         "Completed" => Color.Success,
         _ => Color.Default
     };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data.Changed += StateHasChanged;
+        await Data.InitializeAsync();
+    }
 
     public void Dispose() => Data.Changed -= StateHasChanged;
 }

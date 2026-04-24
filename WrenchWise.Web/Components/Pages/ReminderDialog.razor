@@ -1,0 +1,70 @@
+@using WrenchWise.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudSelect T="Guid" @bind-Value="Model.VehicleId" Label="Vehicle" Variant="Variant.Outlined"
+                       Required="true" RequiredError="Vehicle is required" Class="mb-3">
+                @foreach (var v in Vehicles)
+                {
+                    <MudSelectItem T="Guid" Value="v.Id">@v.Nickname (@v.Year @v.Make @v.Model)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="Model.Title" Label="Reminder Title" Variant="Variant.Outlined"
+                          Required="true" RequiredError="Title is required" Class="mb-3"
+                          Placeholder="e.g. Oil Change, Brake Inspection" />
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="_dueDate" Label="Due Date" Variant="Variant.Outlined"
+                                   PickerVariant="PickerVariant.Dialog" Clearable="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.DueOdometer" Label="Due Odometer (mi)" Variant="Variant.Outlined" Min="0" Clearable="true" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.RepeatEveryDays" Label="Repeat Every (days)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.RepeatEveryMiles" Label="Repeat Every (mi)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="Model.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+            <MudCheckBox @bind-Value="Model.IsCompleted" Label="Completed" Color="Color.Success" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsNew ? "Add Reminder" : "Save Changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ServiceReminder Model { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<Vehicle> Vehicles { get; set; } = new();
+
+    private MudForm _form = default!;
+    private DateTime? _dueDate;
+
+    protected override void OnInitialized()
+    {
+        _dueDate = Model.DueDate?.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            Model.DueDate = _dueDate.HasValue ? DateOnly.FromDateTime(_dueDate.Value) : null;
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}

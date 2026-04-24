@@ -1,0 +1,60 @@
+@using WrenchWise.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Model.Nickname" Label="Nickname" Variant="Variant.Outlined"
+                          Required="true" RequiredError="Nickname is required" Class="mb-3"
+                          Placeholder="e.g. Big Red, Daily Driver" />
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="4">
+                    <MudNumericField @bind-Value="Model.Year" Label="Year" Variant="Variant.Outlined"
+                                     Required="true" RequiredError="Year is required" Min="1900" Max="2030" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudTextField @bind-Value="Model.Make" Label="Make" Variant="Variant.Outlined"
+                                  Required="true" RequiredError="Make is required" Placeholder="e.g. Toyota" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudTextField @bind-Value="Model.Model" Label="Model" Variant="Variant.Outlined"
+                                  Required="true" RequiredError="Model is required" Placeholder="e.g. Tacoma" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="Model.Vin" Label="VIN" Variant="Variant.Outlined"
+                                  Placeholder="17-character VIN" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.CurrentOdometer" Label="Current Odometer (mi)" Variant="Variant.Outlined" Min="0" />
+                </MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="Model.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsNew ? "Add Vehicle" : "Save Changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Vehicle Model { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+
+    private MudForm _form = default!;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}

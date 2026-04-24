@@ -13,6 +13,8 @@ public class WebDataService(IHttpClientFactory clientFactory)
     public bool IsLoaded { get; private set; }
     public event Action? Changed;
 
+    private HttpClient Client => clientFactory.CreateClient("BackendAPI");
+
     public async Task InitializeAsync()
     {
         if (IsLoaded) return;
@@ -23,8 +25,7 @@ public class WebDataService(IHttpClientFactory clientFactory)
     {
         try
         {
-            var client = clientFactory.CreateClient("BackendAPI");
-            Store = await client.GetFromJsonAsync<WrenchWiseStore>("/api/store");
+            Store = await Client.GetFromJsonAsync<WrenchWiseStore>("/api/store");
         }
         catch
         {
@@ -32,6 +33,244 @@ public class WebDataService(IHttpClientFactory clientFactory)
         }
         IsLoaded = true;
         Changed?.Invoke();
+    }
+
+    // ── CRUD: Vehicles ──────────────────────────────────────────────────────
+
+    public async Task<bool> SaveVehicleAsync(Vehicle vehicle)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/vehicles", vehicle);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteVehicleAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/vehicles/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    // ── CRUD: Maintenance ────────────────────────────────────────────────────
+
+    public async Task<bool> SaveMaintenanceAsync(MaintenanceRecord record)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/maintenance", record);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteMaintenanceAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/maintenance/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    // ── CRUD: Fuel ───────────────────────────────────────────────────────────
+
+    public async Task<bool> SaveFuelAsync(FuelRecord record)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/fuel", record);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteFuelAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/fuel/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    // ── CRUD: Reminders ──────────────────────────────────────────────────────
+
+    public async Task<bool> SaveReminderAsync(ServiceReminder reminder)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/reminders", reminder);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteReminderAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/reminders/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    // ── CRUD: Tires ──────────────────────────────────────────────────────────
+
+    public async Task<bool> SaveTireAsync(TireRecord tire)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/tires", tire);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteTireAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/tires/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    // ── CRUD: Projects ───────────────────────────────────────────────────────
+
+    public async Task<bool> SaveProjectAsync(VehicleProject project)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/projects", project);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteProjectAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/projects/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    // ── CRUD: Documents ──────────────────────────────────────────────────────
+
+    public async Task<bool> SaveDocumentAsync(VehicleDocument document)
+    {
+        try
+        {
+            var response = await Client.PostAsJsonAsync("/api/documents", document);
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public async Task<bool> DeleteDocumentAsync(Guid id)
+    {
+        try
+        {
+            var response = await Client.DeleteAsync($"/api/documents/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                Store = await response.Content.ReadFromJsonAsync<WrenchWiseStore>() ?? Store;
+                Changed?.Invoke();
+                return true;
+            }
+        }
+        catch { }
+        return false;
     }
 
     // ── Computed helpers ─────────────────────────────────────────────────────

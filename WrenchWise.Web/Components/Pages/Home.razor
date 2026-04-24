@@ -143,6 +143,20 @@ else
         }
     </MudGrid>
 
+    @* ── Insights Vehicle Filter ──────────────────────────────────────── *@
+    <div class="d-flex align-center justify-space-between mb-4 mt-2">
+        <MudText Typo="Typo.h6" Class="fw-bold">Insights</MudText>
+        <MudSelect T="Guid?" Value="_selectedVehicle" Label="Vehicle" Variant="Variant.Outlined"
+                   Dense="true" Style="max-width: 260px;" Margin="Margin.Dense"
+                   ValueChanged="OnVehicleFilterChanged">
+            <MudSelectItem T="Guid?" Value="null">All Vehicles</MudSelectItem>
+            @foreach (var v in store.Vehicles)
+            {
+                <MudSelectItem T="Guid?" Value="v.Id">@v.Nickname</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+
     @* ── Charts ───────────────────────────────────────────────────────── *@
     <MudGrid Spacing="3">
         <MudItem xs="12" md="6">
@@ -222,6 +236,38 @@ else
             </MudCard>
         </MudItem>
     </MudGrid>
+
+    @* ── Vehicle Summary Table ────────────────────────────────────────── *@
+    <MudText Typo="Typo.h6" Class="fw-bold mt-6 mb-3">Vehicle Summary</MudText>
+    <MudTable Items="@SummaryVehicles" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+              Class="rounded-xl mb-8" Elevation="3">
+        <HeaderContent>
+            <MudTh>Vehicle</MudTh>
+            <MudTh>Odometer</MudTh>
+            <MudTh>Services</MudTh>
+            <MudTh>Fill-ups</MudTh>
+            <MudTh>MPG</MudTh>
+            <MudTh>Total Spent</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Vehicle">
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@context.Nickname[0]</MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.body2" Class="fw-bold">@context.Nickname</MudText>
+                        <MudText Typo="Typo.caption" Class="opacity-60">@context.Year @context.Make @context.Model</MudText>
+                    </div>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Odometer">@context.CurrentOdometer.ToString("N0") mi</MudTd>
+            <MudTd DataLabel="Services">@(Data.Store?.MaintenanceRecords.Count(x => x.VehicleId == context.Id) ?? 0)</MudTd>
+            <MudTd DataLabel="Fill-ups">@(Data.Store?.FuelRecords.Count(x => x.VehicleId == context.Id) ?? 0)</MudTd>
+            <MudTd DataLabel="MPG">@Data.GetAverageMpg(context.Id)</MudTd>
+            <MudTd DataLabel="Total Spent">
+                <MudText Class="fw-bold" Color="Color.Error">@Data.GetTotalSpent(context.Id).ToString("C")</MudText>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
 }
 
 <style>
@@ -234,6 +280,14 @@ else
 </style>
 
 @code {
+    // Vehicle Filter
+    private Guid? _selectedVehicle = null;
+
+    private List<Vehicle> SummaryVehicles => Data.Store?.Vehicles
+        .Where(v => _selectedVehicle == null || v.Id == _selectedVehicle)
+        .OrderByDescending(v => v.UpdatedUtc)
+        .ToList() ?? new();
+
     // Donut
     private List<ChartSeries<double>> _donutSeries = new();
     private string[] _donutLabels = Array.Empty<string>();
@@ -260,15 +314,33 @@ else
         BuildCharts();
     }
 
+    private void OnVehicleFilterChanged(Guid? value)
+    {
+        _selectedVehicle = value;
+        BuildCharts();
+        StateHasChanged();
+    }
+
     private void BuildCharts()
     {
         var store = Data.Store;
         if (store is null) return;
 
+        // Filter records based on selected vehicle
+        var maintRecords = _selectedVehicle.HasValue
+            ? store.MaintenanceRecords.Where(x => x.VehicleId == _selectedVehicle.Value).ToList()
+            : store.MaintenanceRecords;
+        var fuelRecords = _selectedVehicle.HasValue
+            ? store.FuelRecords.Where(x => x.VehicleId == _selectedVehicle.Value).ToList()
+            : store.FuelRecords;
+        var tireRecords = _selectedVehicle.HasValue
+            ? store.TireRecords.Where(x => x.VehicleId == _selectedVehicle.Value).ToList()
+            : store.TireRecords;
+
         // Donut
-        var maintCost = (double)store.MaintenanceRecords.Sum(x => x.Cost);
-        var fuelCost = (double)store.FuelRecords.Sum(x => x.TotalCost);
-        var tireCost = (double)store.TireRecords.Sum(x => x.PurchaseCost);
+        var maintCost = (double)maintRecords.Sum(x => x.Cost);
+        var fuelCost = (double)fuelRecords.Sum(x => x.TotalCost);
+        var tireCost = (double)tireRecords.Sum(x => x.PurchaseCost);
         
         _donutSeries = new List<ChartSeries<double>>
         {
@@ -279,7 +351,7 @@ else
         _donutLabels = new[] { "Service", "Fuel", "Tires" };
 
         // Maintenance Breakdown
-        var maintGroups = store.MaintenanceRecords.GroupBy(x => string.IsNullOrWhiteSpace(x.ServiceType) ? "Other" : x.ServiceType).ToList();
+        var maintGroups = maintRecords.GroupBy(x => string.IsNullOrWhiteSpace(x.ServiceType) ? "Other" : x.ServiceType).ToList();
         _maintSeries = new List<ChartSeries<double>>();
         var mLabels = new List<string>();
         foreach (var g in maintGroups)
@@ -300,8 +372,8 @@ else
             var month = now.AddMonths(-i);
             _barLabels[5 - i] = month.ToString("MMM");
 
-            var mFuels = store.FuelRecords.Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month).ToList();
-            var mMaints = store.MaintenanceRecords.Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month).ToList();
+            var mFuels = fuelRecords.Where(x => x.FillDate.Year == month.Year && x.FillDate.Month == month.Month).ToList();
+            var mMaints = maintRecords.Where(x => x.ServiceDate.Year == month.Year && x.ServiceDate.Month == month.Month).ToList();
 
             var fuelCostMo = mFuels.Sum(x => (double)x.TotalCost);
             var maintCostMo = mMaints.Sum(x => (double)x.Cost);

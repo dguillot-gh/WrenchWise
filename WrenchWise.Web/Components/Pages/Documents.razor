@@ -1,5 +1,7 @@
 @page "/documents"
 @inject WebDataService Data
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>Documents — WrenchWise</PageTitle>
@@ -9,6 +11,11 @@
         <MudText Typo="Typo.h5" Class="fw-bold">Vehicle Documents</MudText>
         <MudText Typo="Typo.body2" Class="opacity-60">Track your Insurance, Registration, and Inspections.</MudText>
     </div>
+    @if (Data.IsLoaded)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditor(null))" Class="rounded-lg">Add Document</MudButton>
+    }
 </div>
 
 @if (!Data.IsLoaded)
@@ -27,9 +34,11 @@ else
     var documents = Data.Store!.VehicleDocuments.OrderByDescending(x => x.UpdatedUtc).ToList();
     if (!documents.Any())
     {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="rounded-xl">
-            No documents found. Use the mobile app to input vehicle documents!
-        </MudAlert>
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
+            <MudIcon Icon="@Icons.Material.Filled.Description" Style="font-size:4rem;" />
+            <MudText Typo="Typo.h6">No documents yet</MudText>
+            <MudText Typo="Typo.body2">Click "Add Document" to get started.</MudText>
+        </MudStack>
     }
     else
     {
@@ -91,6 +100,13 @@ else
                                 <MudText Typo="Typo.caption" Class="d-block opacity-60 mt-2">Notes: @d.Notes</MudText>
                             }
                         </MudCardContent>
+                        <MudCardActions Class="px-4 pb-3">
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => OpenEditor(d))">Edit</MudButton>
+                            <MudSpacer />
+                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.Delete"
+                                       OnClick="@(() => ConfirmDelete(d))">Delete</MudButton>
+                        </MudCardActions>
                     </MudCard>
                 </MudItem>
             }
@@ -98,7 +114,66 @@ else
     }
 }
 
+@using WrenchWise.Shared.Models
+
 @code {
+    private async Task OpenEditor(VehicleDocument? existing)
+    {
+        var isNew = existing is null;
+        var model = isNew
+            ? new VehicleDocument
+            {
+                VehicleId = Data.Store?.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+            }
+            : new VehicleDocument
+            {
+                Id = existing!.Id,
+                VehicleId = existing.VehicleId,
+                DocumentType = existing.DocumentType,
+                Provider = existing.Provider,
+                PolicyNumber = existing.PolicyNumber,
+                EffectiveDate = existing.EffectiveDate,
+                ExpirationDate = existing.ExpirationDate,
+                PremiumCost = existing.PremiumCost,
+                Notes = existing.Notes
+            };
+
+        var parameters = new DialogParameters<DocumentDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsNew, isNew },
+            { x => x.Vehicles, Data.Store?.Vehicles ?? new() }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<DocumentDialog>(isNew ? "Add Document" : "Edit Document", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var saved = await Data.SaveDocumentAsync(model);
+            Snackbar.Add(saved ? "Document saved!" : "Failed to save.", saved ? Severity.Success : Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(VehicleDocument doc)
+    {
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Document",
+            new DialogParameters<MudMessageBox>
+            {
+                { x => x.Message, $"Delete \"{doc.DocumentType}\" document?" },
+                { x => x.YesText, "Delete" },
+                { x => x.CancelText, "Cancel" }
+            });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var deleted = await Data.DeleteDocumentAsync(doc.Id);
+            Snackbar.Add(deleted ? "Document deleted." : "Failed to delete.", deleted ? Severity.Success : Severity.Error);
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         Data.Changed += StateHasChanged;

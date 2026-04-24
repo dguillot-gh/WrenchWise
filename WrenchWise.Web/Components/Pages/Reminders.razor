@@ -1,11 +1,22 @@
 @page "/reminders"
 @inject WebDataService Data
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>Reminders — WrenchWise</PageTitle>
 
-<MudText Typo="Typo.h5" Class="fw-bold mb-1">Service Reminders</MudText>
-<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Stay ahead of your maintenance schedule.</MudText>
+<div class="d-flex align-center justify-space-between mb-5">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold mb-1">Service Reminders</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60">Stay ahead of your maintenance schedule.</MudText>
+    </div>
+    @if (Data.IsLoaded)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditor(null))" Class="rounded-lg">Add Reminder</MudButton>
+    }
+</div>
 
 @if (!Data.IsLoaded)
 {
@@ -91,7 +102,7 @@ else
         <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
             <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Style="font-size:4rem;" />
             <MudText Typo="Typo.h6">No reminders set</MudText>
-            <MudText Typo="Typo.body2">Add reminders from the WrenchWise mobile app.</MudText>
+            <MudText Typo="Typo.body2">Click "Add Reminder" to create one.</MudText>
         </MudStack>
     }
 }
@@ -107,9 +118,15 @@ else
                 <MudCardContent Class="pa-4">
                     <div class="d-flex justify-space-between align-start mb-2">
                         <MudText Typo="Typo.subtitle2" Class="fw-bold">@r.Title</MudText>
-                        <MudChip T="string" Color="color" Size="Size.Small" Variant="Variant.Filled">
-                            @(r.IsCompleted ? "Done" : (Data.IsReminderOverdue(r) ? "Overdue" : (Data.IsReminderDue(r) ? "Due" : "Upcoming")))
-                        </MudChip>
+                        <div class="d-flex align-center gap-1">
+                            <MudChip T="string" Color="color" Size="Size.Small" Variant="Variant.Filled">
+                                @(r.IsCompleted ? "Done" : (Data.IsReminderOverdue(r) ? "Overdue" : (Data.IsReminderDue(r) ? "Due" : "Upcoming")))
+                            </MudChip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                           OnClick="@(() => OpenEditor(r))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => ConfirmDelete(r))" />
+                        </div>
                     </div>
                     @if (vehicle != null)
                     {
@@ -141,6 +158,63 @@ else
             </MudCard>
         </MudItem>
     };
+
+    private async Task OpenEditor(ServiceReminder? existing)
+    {
+        var isNew = existing is null;
+        var model = isNew
+            ? new ServiceReminder
+            {
+                VehicleId = Data.Store?.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty
+            }
+            : new ServiceReminder
+            {
+                Id = existing!.Id,
+                VehicleId = existing.VehicleId,
+                Title = existing.Title,
+                DueOdometer = existing.DueOdometer,
+                DueDate = existing.DueDate,
+                RepeatEveryMiles = existing.RepeatEveryMiles,
+                RepeatEveryDays = existing.RepeatEveryDays,
+                Notes = existing.Notes,
+                IsCompleted = existing.IsCompleted
+            };
+
+        var parameters = new DialogParameters<ReminderDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsNew, isNew },
+            { x => x.Vehicles, Data.Store?.Vehicles ?? new() }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<ReminderDialog>(isNew ? "Add Reminder" : "Edit Reminder", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var saved = await Data.SaveReminderAsync(model);
+            Snackbar.Add(saved ? "Reminder saved!" : "Failed to save.", saved ? Severity.Success : Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(ServiceReminder reminder)
+    {
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Reminder",
+            new DialogParameters<MudMessageBox>
+            {
+                { x => x.Message, $"Delete reminder \"{reminder.Title}\"?" },
+                { x => x.YesText, "Delete" },
+                { x => x.CancelText, "Cancel" }
+            });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var deleted = await Data.DeleteReminderAsync(reminder.Id);
+            Snackbar.Add(deleted ? "Reminder deleted." : "Failed to delete.", deleted ? Severity.Success : Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

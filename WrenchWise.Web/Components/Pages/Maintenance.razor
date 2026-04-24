@@ -1,11 +1,22 @@
 @page "/maintenance"
 @inject WebDataService Data
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>Maintenance — WrenchWise</PageTitle>
 
-<MudText Typo="Typo.h5" Class="fw-bold mb-1">Maintenance History</MudText>
-<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Full service record across all vehicles.</MudText>
+<div class="d-flex align-center justify-space-between mb-1">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">Maintenance History</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60 mb-5">Full service record across all vehicles.</MudText>
+    </div>
+    @if (Data.IsLoaded)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditor(null))" Class="rounded-lg">Add Record</MudButton>
+    }
+</div>
 
 @if (!Data.IsLoaded)
 {
@@ -47,6 +58,7 @@ else
             <MudTh>Shop</MudTh>
             <MudTh><MudTableSortLabel SortBy="new Func<MaintenanceRecord, object>(x => x.Odometer)">Odometer</MudTableSortLabel></MudTh>
             <MudTh><MudTableSortLabel SortBy="new Func<MaintenanceRecord, object>(x => x.Cost)">Cost</MudTableSortLabel></MudTh>
+            <MudTh Style="width:90px;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Date">@context.ServiceDate.ToString("MMM d, yyyy")</MudTd>
@@ -81,6 +93,12 @@ else
                     @(context.Cost == 0 ? "Free" : context.Cost.ToString("C"))
                 </MudText>
             </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                               OnClick="@(() => OpenEditor(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => ConfirmDelete(context))" />
+            </MudTd>
         </RowTemplate>
         <PagerContent>
             <MudTablePager PageSizeOptions="new[] { 10, 20, 50 }" />
@@ -94,6 +112,10 @@ else
     private string _search = string.Empty;
     private Guid? _vehicleFilter;
 
+    // ── Editor state ────────────────────────────────────────────────
+    private MaintenanceRecord _editModel = new();
+    private bool _isNew;
+
     private List<MaintenanceRecord> FilteredRecords => Data.Store?.MaintenanceRecords
         .Where(x => (_vehicleFilter == null || x.VehicleId == _vehicleFilter)
                  && (string.IsNullOrWhiteSpace(_search)
@@ -102,6 +124,70 @@ else
                      || x.Notes.Contains(_search, StringComparison.OrdinalIgnoreCase)))
         .OrderByDescending(x => x.ServiceDate)
         .ToList() ?? new();
+
+    private async Task OpenEditor(MaintenanceRecord? existing)
+    {
+        _isNew = existing is null;
+        if (_isNew)
+        {
+            _editModel = new MaintenanceRecord
+            {
+                VehicleId = Data.Store?.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty,
+                ServiceDate = DateOnly.FromDateTime(DateTime.Today)
+            };
+        }
+        else
+        {
+            // Clone so we don't mutate the store directly
+            _editModel = new MaintenanceRecord
+            {
+                Id = existing!.Id,
+                VehicleId = existing.VehicleId,
+                ServiceType = existing.ServiceType,
+                ServiceDate = existing.ServiceDate,
+                Odometer = existing.Odometer,
+                Cost = existing.Cost,
+                ShopName = existing.ShopName,
+                Notes = existing.Notes,
+                Parts = existing.Parts?.ToList() ?? new()
+            };
+        }
+
+        var parameters = new DialogParameters<MaintenanceDialog>
+        {
+            { x => x.Model, _editModel },
+            { x => x.IsNew, _isNew },
+            { x => x.Vehicles, Data.Store?.Vehicles ?? new() }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<MaintenanceDialog>(_isNew ? "Add Maintenance Record" : "Edit Maintenance Record", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var saved = await Data.SaveMaintenanceAsync(_editModel);
+            Snackbar.Add(saved ? "Record saved!" : "Failed to save.", saved ? Severity.Success : Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(MaintenanceRecord record)
+    {
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Record",
+            new DialogParameters<MudMessageBox>
+            {
+                { x => x.Message, $"Delete {record.ServiceType} on {record.ServiceDate:MMM d, yyyy}?" },
+                { x => x.YesText, "Delete" },
+                { x => x.CancelText, "Cancel" }
+            });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var deleted = await Data.DeleteMaintenanceAsync(record.Id);
+            Snackbar.Add(deleted ? "Record deleted." : "Failed to delete.", deleted ? Severity.Success : Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

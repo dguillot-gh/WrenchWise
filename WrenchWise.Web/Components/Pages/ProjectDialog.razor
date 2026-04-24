@@ -1,0 +1,69 @@
+@using WrenchWise.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudSelect T="Guid" @bind-Value="Model.VehicleId" Label="Vehicle" Variant="Variant.Outlined"
+                       Required="true" RequiredError="Vehicle is required" Class="mb-3">
+                @foreach (var v in Vehicles)
+                {
+                    <MudSelectItem T="Guid" Value="v.Id">@v.Nickname (@v.Year @v.Make @v.Model)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="Model.Title" Label="Project Title" Variant="Variant.Outlined"
+                          Required="true" RequiredError="Title is required" Class="mb-3"
+                          Placeholder="e.g. Lift Kit Install, Engine Swap" />
+            <MudTextField @bind-Value="Model.Description" Label="Description" Variant="Variant.Outlined" Lines="3" Class="mb-3" />
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="4">
+                    <MudNumericField @bind-Value="Model.EstimatedCost" Label="Estimated ($)" Variant="Variant.Outlined" Format="N2" Min="0m" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudNumericField @bind-Value="Model.ActualCost" Label="Actual ($)" Variant="Variant.Outlined" Format="N2" Min="0m" />
+                </MudItem>
+                <MudItem xs="4">
+                    <MudSelect T="string" @bind-Value="Model.Status" Label="Status" Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@("Planning")">Planning</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("InProgress")">In Progress</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Completed")">Completed</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+            <MudDatePicker @bind-Date="_targetDate" Label="Target Date" Variant="Variant.Outlined"
+                           PickerVariant="PickerVariant.Dialog" Clearable="true" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsNew ? "Add Project" : "Save Changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public VehicleProject Model { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<Vehicle> Vehicles { get; set; } = new();
+
+    private MudForm _form = default!;
+    private DateTime? _targetDate;
+
+    protected override void OnInitialized()
+    {
+        _targetDate = Model.TargetDate?.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            Model.TargetDate = _targetDate.HasValue ? DateOnly.FromDateTime(_targetDate.Value) : null;
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}

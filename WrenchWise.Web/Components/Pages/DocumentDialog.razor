@@ -1,0 +1,87 @@
+@using WrenchWise.Shared.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudSelect T="Guid" @bind-Value="Model.VehicleId" Label="Vehicle" Variant="Variant.Outlined"
+                       Required="true" RequiredError="Vehicle is required" Class="mb-3">
+                @foreach (var v in Vehicles)
+                {
+                    <MudSelectItem T="Guid" Value="v.Id">@v.Nickname (@v.Year @v.Make @v.Model)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudSelect T="string" @bind-Value="Model.DocumentType" Label="Document Type" Variant="Variant.Outlined"
+                               Required="true" RequiredError="Type is required">
+                        <MudSelectItem T="string" Value="@("Insurance")">Insurance</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Registration")">Registration</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Inspection")">Inspection</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Title")">Title</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Warranty")">Warranty</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Other")">Other</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="Model.Provider" Label="Provider" Variant="Variant.Outlined"
+                                  Placeholder="e.g. State Farm, DMV" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="Model.PolicyNumber" Label="Policy / Doc #" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField @bind-Value="Model.PremiumCost" Label="Premium ($)" Variant="Variant.Outlined" Format="N2" Min="0m" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="_effectiveDate" Label="Effective Date" Variant="Variant.Outlined"
+                                   PickerVariant="PickerVariant.Dialog" Clearable="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudDatePicker @bind-Date="_expirationDate" Label="Expiration Date" Variant="Variant.Outlined"
+                                   PickerVariant="PickerVariant.Dialog" Clearable="true" />
+                </MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="Model.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">
+            @(IsNew ? "Add Document" : "Save Changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public VehicleDocument Model { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<Vehicle> Vehicles { get; set; } = new();
+
+    private MudForm _form = default!;
+    private DateTime? _effectiveDate;
+    private DateTime? _expirationDate;
+
+    protected override void OnInitialized()
+    {
+        _effectiveDate = Model.EffectiveDate?.ToDateTime(TimeOnly.MinValue);
+        _expirationDate = Model.ExpirationDate?.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (_form.IsValid)
+        {
+            Model.EffectiveDate = _effectiveDate.HasValue ? DateOnly.FromDateTime(_effectiveDate.Value) : null;
+            Model.ExpirationDate = _expirationDate.HasValue ? DateOnly.FromDateTime(_expirationDate.Value) : null;
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+}
