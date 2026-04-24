@@ -1,11 +1,22 @@
 @page "/fleet"
 @inject WebDataService Data
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>Fleet — WrenchWise</PageTitle>
 
-<MudText Typo="Typo.h5" Class="fw-bold mb-1">Fleet</MudText>
-<MudText Typo="Typo.body2" Class="opacity-60 mb-6">All vehicles at a glance.</MudText>
+<div class="d-flex align-center justify-space-between mb-6">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">Fleet</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60">All vehicles at a glance.</MudText>
+    </div>
+    @if (Data.IsLoaded)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditor(null))" Class="rounded-lg">Add Vehicle</MudButton>
+    }
+</div>
 
 @if (!Data.IsLoaded)
 {
@@ -21,6 +32,15 @@
 else
 {
     var store = Data.Store!;
+
+    @if (!store.Vehicles.Any())
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-12 opacity-50">
+            <MudIcon Icon="@Icons.Material.Filled.DirectionsCar" Style="font-size:4rem;" />
+            <MudText Typo="Typo.h6">No vehicles yet</MudText>
+            <MudText Typo="Typo.body2">Click "Add Vehicle" to get started.</MudText>
+        </MudStack>
+    }
 
     <MudGrid Spacing="3">
         @foreach (var v in store.Vehicles.OrderByDescending(x => x.UpdatedUtc))
@@ -103,13 +123,75 @@ else
                             }
                         </MudList>
                     </MudCardContent>
+                    <MudCardActions Class="px-4 pb-3">
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Filled.Edit"
+                                   OnClick="@(() => OpenEditor(v))">Edit</MudButton>
+                        <MudSpacer />
+                        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.Delete"
+                                   OnClick="@(() => ConfirmDelete(v))">Delete</MudButton>
+                    </MudCardActions>
                 </MudCard>
             </MudItem>
         }
     </MudGrid>
 }
 
+@using WrenchWise.Shared.Models
+
 @code {
+    private async Task OpenEditor(Vehicle? existing)
+    {
+        var isNew = existing is null;
+        var model = isNew
+            ? new Vehicle()
+            : new Vehicle
+            {
+                Id = existing!.Id,
+                Nickname = existing.Nickname,
+                Make = existing.Make,
+                Model = existing.Model,
+                Year = existing.Year,
+                Vin = existing.Vin,
+                CurrentOdometer = existing.CurrentOdometer,
+                Notes = existing.Notes,
+                ColorHex = existing.ColorHex
+            };
+
+        var parameters = new DialogParameters<VehicleDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsNew, isNew }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<VehicleDialog>(isNew ? "Add Vehicle" : "Edit Vehicle", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var saved = await Data.SaveVehicleAsync(model);
+            Snackbar.Add(saved ? "Vehicle saved!" : "Failed to save.", saved ? Severity.Success : Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(Vehicle vehicle)
+    {
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Vehicle",
+            new DialogParameters<MudMessageBox>
+            {
+                { x => x.Message, $"Delete \"{vehicle.Nickname}\" and ALL its records (maintenance, fuel, reminders, etc.)?" },
+                { x => x.YesText, "Delete Everything" },
+                { x => x.CancelText, "Cancel" }
+            });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var deleted = await Data.DeleteVehicleAsync(vehicle.Id);
+            Snackbar.Add(deleted ? "Vehicle deleted." : "Failed to delete.", deleted ? Severity.Success : Severity.Error);
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         Data.Changed += StateHasChanged;

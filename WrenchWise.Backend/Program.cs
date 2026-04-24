@@ -202,6 +202,168 @@ app.MapDelete("/api/seed/reset", async (WrenchWiseDbContext db) =>
     return Results.Ok(new { message = "All data wiped. Ready for real data." });
 });
 
+// ── Direct REST CRUD Endpoints (Web App) ────────────────────────────────────
+
+// Vehicles
+app.MapPost("/api/vehicles", async (Vehicle vehicle, WrenchWiseDbContext db) =>
+{
+    vehicle.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.Vehicles.FindAsync(vehicle.Id);
+    if (existing is null)
+        db.Vehicles.Add(vehicle);
+    else
+        db.Entry(existing).CurrentValues.SetValues(vehicle);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/vehicles/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var vehicle = await db.Vehicles.FindAsync(id);
+    if (vehicle is null) return Results.NotFound();
+    db.Vehicles.Remove(vehicle);
+    db.MaintenanceRecords.RemoveRange(db.MaintenanceRecords.Where(x => x.VehicleId == id));
+    db.FuelRecords.RemoveRange(db.FuelRecords.Where(x => x.VehicleId == id));
+    db.ServiceReminders.RemoveRange(db.ServiceReminders.Where(x => x.VehicleId == id));
+    db.TireRecords.RemoveRange(db.TireRecords.Where(x => x.VehicleId == id));
+    db.VehicleProjects.RemoveRange(db.VehicleProjects.Where(x => x.VehicleId == id));
+    db.VehicleDocuments.RemoveRange(db.VehicleDocuments.Where(x => x.VehicleId == id));
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+// Maintenance
+app.MapPost("/api/maintenance", async (MaintenanceRecord record, WrenchWiseDbContext db) =>
+{
+    record.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.MaintenanceRecords.FindAsync(record.Id);
+    if (existing is null)
+        db.MaintenanceRecords.Add(record);
+    else
+        db.Entry(existing).CurrentValues.SetValues(record);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/maintenance/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var record = await db.MaintenanceRecords.FindAsync(id);
+    if (record is null) return Results.NotFound();
+    db.MaintenanceRecords.Remove(record);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+// Fuel
+app.MapPost("/api/fuel", async (FuelRecord record, WrenchWiseDbContext db) =>
+{
+    record.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.FuelRecords.FindAsync(record.Id);
+    if (existing is null)
+        db.FuelRecords.Add(record);
+    else
+        db.Entry(existing).CurrentValues.SetValues(record);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/fuel/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var record = await db.FuelRecords.FindAsync(id);
+    if (record is null) return Results.NotFound();
+    db.FuelRecords.Remove(record);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+// Reminders
+app.MapPost("/api/reminders", async (ServiceReminder reminder, WrenchWiseDbContext db) =>
+{
+    reminder.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.ServiceReminders.FindAsync(reminder.Id);
+    if (existing is null)
+        db.ServiceReminders.Add(reminder);
+    else
+        db.Entry(existing).CurrentValues.SetValues(reminder);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/reminders/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var reminder = await db.ServiceReminders.FindAsync(id);
+    if (reminder is null) return Results.NotFound();
+    db.ServiceReminders.Remove(reminder);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+// Tires
+app.MapPost("/api/tires", async (TireRecord tire, WrenchWiseDbContext db) =>
+{
+    tire.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.TireRecords.FindAsync(tire.Id);
+    if (existing is null)
+        db.TireRecords.Add(tire);
+    else
+        db.Entry(existing).CurrentValues.SetValues(tire);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/tires/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var tire = await db.TireRecords.FindAsync(id);
+    if (tire is null) return Results.NotFound();
+    db.TireRecords.Remove(tire);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+// Projects
+app.MapPost("/api/projects", async (VehicleProject project, WrenchWiseDbContext db) =>
+{
+    project.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.VehicleProjects.FindAsync(project.Id);
+    if (existing is null)
+        db.VehicleProjects.Add(project);
+    else
+        db.Entry(existing).CurrentValues.SetValues(project);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/projects/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var project = await db.VehicleProjects.FindAsync(id);
+    if (project is null) return Results.NotFound();
+    db.VehicleProjects.Remove(project);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+// Documents
+app.MapPost("/api/documents", async (VehicleDocument document, WrenchWiseDbContext db) =>
+{
+    document.UpdatedUtc = DateTime.UtcNow;
+    var existing = await db.VehicleDocuments.FindAsync(document.Id);
+    if (existing is null)
+        db.VehicleDocuments.Add(document);
+    else
+        db.Entry(existing).CurrentValues.SetValues(document);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
+app.MapDelete("/api/documents/{id}", async (Guid id, WrenchWiseDbContext db) =>
+{
+    var document = await db.VehicleDocuments.FindAsync(id);
+    if (document is null) return Results.NotFound();
+    db.VehicleDocuments.Remove(document);
+    await db.SaveChangesAsync();
+    return Results.Ok(await BuildStoreAsync(db));
+});
+
 app.Run();
 
 static async Task<WrenchWiseStore> BuildStoreAsync(WrenchWiseDbContext db)

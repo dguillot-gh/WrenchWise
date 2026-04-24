@@ -1,11 +1,22 @@
 @page "/fuel"
 @inject WebDataService Data
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>Fuel Log — WrenchWise</PageTitle>
 
-<MudText Typo="Typo.h5" Class="fw-bold mb-1">Fuel Log</MudText>
-<MudText Typo="Typo.body2" Class="opacity-60 mb-5">Every fill-up, every mile.</MudText>
+<div class="d-flex align-center justify-space-between mb-1">
+    <div>
+        <MudText Typo="Typo.h5" Class="fw-bold">Fuel Log</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-60 mb-5">Every fill-up, every mile.</MudText>
+    </div>
+    @if (Data.IsLoaded)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => OpenEditor(null))" Class="rounded-lg">Add Fill-up</MudButton>
+    }
+</div>
 
 @if (!Data.IsLoaded)
 {
@@ -51,6 +62,7 @@ else
             <MudTh>$/Gal</MudTh>
             <MudTh><MudTableSortLabel SortBy="new Func<FuelRecord, object>(x => x.TripMiles > 0 && x.Gallons > 0 ? x.TripMiles / (double)x.Gallons : 0)">MPG</MudTableSortLabel></MudTh>
             <MudTh>Odometer</MudTh>
+            <MudTh Style="width:90px;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
             @{ var ppg = context.Gallons > 0 ? context.TotalCost / context.Gallons : 0; }
@@ -77,6 +89,12 @@ else
                 }
             </MudTd>
             <MudTd DataLabel="Odometer">@context.Odometer.ToString("N0") mi</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                               OnClick="@(() => OpenEditor(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => ConfirmDelete(context))" />
+            </MudTd>
         </RowTemplate>
         <PagerContent>
             <MudTablePager PageSizeOptions="new[] { 10, 20, 50 }" />
@@ -97,6 +115,66 @@ else
                      || x.FuelGrade.Contains(_search, StringComparison.OrdinalIgnoreCase)))
         .OrderByDescending(x => x.FillDate)
         .ToList() ?? new();
+
+    private async Task OpenEditor(FuelRecord? existing)
+    {
+        var isNew = existing is null;
+        var model = isNew
+            ? new FuelRecord
+            {
+                VehicleId = Data.Store?.Vehicles.FirstOrDefault()?.Id ?? Guid.Empty,
+                FillDate = DateOnly.FromDateTime(DateTime.Today)
+            }
+            : new FuelRecord
+            {
+                Id = existing!.Id,
+                VehicleId = existing.VehicleId,
+                FillDate = existing.FillDate,
+                Odometer = existing.Odometer,
+                TripMiles = existing.TripMiles,
+                Gallons = existing.Gallons,
+                TotalCost = existing.TotalCost,
+                FullTank = existing.FullTank,
+                Station = existing.Station,
+                FuelGrade = existing.FuelGrade,
+                AdditiveNotes = existing.AdditiveNotes
+            };
+
+        var parameters = new DialogParameters<FuelDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsNew, isNew },
+            { x => x.Vehicles, Data.Store?.Vehicles ?? new() }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<FuelDialog>(isNew ? "Add Fuel Fill-up" : "Edit Fuel Fill-up", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var saved = await Data.SaveFuelAsync(model);
+            Snackbar.Add(saved ? "Fill-up saved!" : "Failed to save.", saved ? Severity.Success : Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(FuelRecord record)
+    {
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Fill-up",
+            new DialogParameters<MudMessageBox>
+            {
+                { x => x.Message, $"Delete fill-up at {record.Station} on {record.FillDate:MMM d, yyyy}?" },
+                { x => x.YesText, "Delete" },
+                { x => x.CancelText, "Cancel" }
+            });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            var deleted = await Data.DeleteFuelAsync(record.Id);
+            Snackbar.Add(deleted ? "Fill-up deleted." : "Failed to delete.", deleted ? Severity.Success : Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
