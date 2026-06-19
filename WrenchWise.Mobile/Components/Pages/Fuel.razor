@@ -217,6 +217,12 @@ else
         if (!_isEditing)
         {
             _record.Odometer = WrenchWise.GetSuggestedOdometer(_record.VehicleId) + (int)Math.Round(_record.TripMiles);
+            
+            // Auto-tag to active trip if applicable
+            if (WrenchWise.ActiveTripId.HasValue && WrenchWise.ActiveTrip?.VehicleId == _record.VehicleId)
+            {
+                _record.TripId = WrenchWise.ActiveTripId.Value;
+            }
         }
         else
         {
@@ -260,6 +266,7 @@ else
         {
             Id = record.Id,
             VehicleId = record.VehicleId,
+            TripId = record.TripId,
             FillDate = record.FillDate,
             Odometer = record.Odometer,
             TripMiles = record.TripMiles,

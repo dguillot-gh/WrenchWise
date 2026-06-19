@@ -16,5 +16,6 @@ public class FuelRecord
     public string AdditiveNotes { get; set; } = string.Empty;
     public string ReceiptImagePath { get; set; } = string.Empty;
     public string ReceiptOcrText { get; set; } = string.Empty;
+    public Guid? TripId { get; set; }
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }

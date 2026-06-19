@@ -52,3 +52,30 @@ CREATE TABLE IF NOT EXISTS "ActivityLog" (
 );
 
 CREATE INDEX IF NOT EXISTS "IX_ActivityLog_TimestampUtc" ON "ActivityLog" ("TimestampUtc");
+
+-- 7. Add TripId to FuelRecords and MaintenanceRecords
+ALTER TABLE "FuelRecords" ADD COLUMN IF NOT EXISTS "TripId" uuid;
+ALTER TABLE "MaintenanceRecords" ADD COLUMN IF NOT EXISTS "TripId" uuid;
+
+-- 8. Create Trips table
+CREATE TABLE IF NOT EXISTS "Trips" (
+    "Id" uuid NOT NULL PRIMARY KEY,
+    "VehicleId" uuid NOT NULL,
+    "Name" text NOT NULL DEFAULT '',
+    "StartDate" date NOT NULL,
+    "StartOdometer" integer NOT NULL,
+    "EndDate" date,
+    "EndOdometer" integer,
+    "UpdatedUtc" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- 9. Create TripExpenses table
+CREATE TABLE IF NOT EXISTS "TripExpenses" (
+    "Id" uuid NOT NULL PRIMARY KEY,
+    "TripId" uuid NOT NULL,
+    "ExpenseDate" date NOT NULL,
+    "Category" text NOT NULL DEFAULT '',
+    "Amount" numeric NOT NULL DEFAULT 0,
+    "Notes" text NOT NULL DEFAULT '',
+    "UpdatedUtc" timestamp with time zone NOT NULL DEFAULT now()
+);

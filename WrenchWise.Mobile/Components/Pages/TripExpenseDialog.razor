@@ -1,0 +1,80 @@
+@using WrenchWise.Services
+@inject WrenchWiseService WrenchWise
+
+<MudDialog>
+    <DialogContent>
+        <MudSelect T="string" Label="Expense Type" @bind-Value="_expenseType" Class="mb-4">
+            <MudSelectItem Value="@("Trip")">Trip Expense (Food, Lodging, Tolls)</MudSelectItem>
+            <MudSelectItem Value="@("Vehicle")">Vehicle Repair / Service</MudSelectItem>
+        </MudSelect>
+
+        @if (_expenseType == "Trip")
+        {
+            <MudSelect T="string" Label="Category" @bind-Value="_category" Class="mb-4">
+                <MudSelectItem Value="@("Food")">Food & Dining</MudSelectItem>
+                <MudSelectItem Value="@("Lodging")">Lodging</MudSelectItem>
+                <MudSelectItem Value="@("Tolls")">Tolls & Parking</MudSelectItem>
+                <MudSelectItem Value="@("Misc")">Miscellaneous</MudSelectItem>
+            </MudSelect>
+            <MudNumericField T="decimal" Label="Amount" @bind-Value="_amount" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Class="mb-4" />
+            <MudTextField T="string" Label="Notes (Optional)" @bind-Value="_notes" Lines="2" />
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-4 px-3 py-1">This will be logged to your vehicle's maintenance history and count towards its lifetime running cost.</MudAlert>
+            <MudTextField T="string" Label="Service Type" @bind-Value="_serviceType" HelperText="e.g. Flat Tire Repair" Class="mb-4" />
+            <MudNumericField T="decimal" Label="Cost" @bind-Value="_amount" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Class="mb-4" />
+            <MudNumericField T="int" Label="Odometer" @bind-Value="_odometer" Class="mb-4" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int CurrentOdometer { get; set; }
+    
+    private string _expenseType = "Trip";
+    private string _category = "Food";
+    private decimal _amount = 0;
+    private string _notes = "";
+    private string _serviceType = "";
+    private int _odometer;
+
+    protected override void OnInitialized()
+    {
+        _odometer = CurrentOdometer;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Save()
+    {
+        if (_amount <= 0) return;
+        if (_expenseType == "Vehicle" && string.IsNullOrWhiteSpace(_serviceType)) return;
+        
+        var result = new TripExpenseResult
+        {
+            IsVehicleExpense = _expenseType == "Vehicle",
+            Amount = _amount,
+            Category = _category,
+            Notes = _notes,
+            ServiceType = _serviceType,
+            Odometer = _odometer
+        };
+        MudDialog.Close(DialogResult.Ok(result));
+    }
+    
+    public class TripExpenseResult
+    {
+        public bool IsVehicleExpense { get; set; }
+        public decimal Amount { get; set; }
+        public string Category { get; set; } = "";
+        public string Notes { get; set; } = "";
+        public string ServiceType { get; set; } = "";
+        public int Odometer { get; set; }
+    }
+}

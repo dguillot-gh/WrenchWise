@@ -29,12 +29,15 @@ public class WrenchWiseService
     public IReadOnlyList<TireRecord> TireRecords => _offline.Store.TireRecords;
     public IReadOnlyList<VehicleProject> VehicleProjects => _offline.Store.VehicleProjects;
     public IReadOnlyList<VehicleDocument> VehicleDocuments => _offline.Store.VehicleDocuments;
+    public IReadOnlyList<Trip> Trips => _offline.Store.Trips;
+    public IReadOnlyList<TripExpense> TripExpenses => _offline.Store.TripExpenses;
     public IReadOnlyList<ActivityLogEntry> ActivityLog => _offline.Store.ActivityLog;
     public int PendingSyncCount => _offline.PendingOperations.Count;
     public DateTime? LastSyncUtc => _offline.LastSyncUtc == default ? null : _offline.LastSyncUtc;
     public string ApiBaseUrl => _offline.ApiBaseUrl;
     public Guid ActiveVehicleId => _offline.ActiveVehicleId;
-    public TripState? ActiveTrip => _offline.ActiveTrip;
+    public Guid? ActiveTripId => _offline.ActiveTripId;
+    public Trip? ActiveTrip => _offline.ActiveTripId.HasValue ? _offline.Store.Trips.FirstOrDefault(x => x.Id == _offline.ActiveTripId.Value) : null;
 
     private static readonly FilePickerFileType JsonFileType = new(new Dictionary<DevicePlatform, IEnumerable<string>>
     {
@@ -504,40 +507,52 @@ public class WrenchWiseService
             return false;
         }
 
-        _offline.ActiveTrip = new TripState
+        var trip = new Trip
         {
             VehicleId = vehicleId,
-            TripName = tripName.Trim(),
+            Name = tripName.Trim(),
             StartDate = DateOnly.FromDateTime(DateTime.Today),
-            StartOdometer = startOdometer
+            StartOdometer = startOdometer,
+            UpdatedUtc = DateTime.UtcNow
         };
+        
+        _offline.Store.Trips.Add(trip);
+        QueueUpsert(SyncOperationType.UpsertTrip, trip.Id, trip);
+        _offline.ActiveTripId = trip.Id;
         await PersistAndNotifyAsync();
         return true;
     }
 
     public async Task EndTripAsync(int endOdometer)
     {
-        if (_offline.ActiveTrip is null)
+        var trip = ActiveTrip;
+        if (trip is null)
         {
             return;
         }
 
-        await UpdateVehicleOdometerAsync(_offline.ActiveTrip.VehicleId, endOdometer);
-        _offline.ActiveTrip = null;
+        trip.EndDate = DateOnly.FromDateTime(DateTime.Today);
+        trip.EndOdometer = endOdometer;
+        trip.UpdatedUtc = DateTime.UtcNow;
+        
+        QueueUpsert(SyncOperationType.UpsertTrip, trip.Id, trip);
+        await UpdateVehicleOdometerAsync(trip.VehicleId, endOdometer);
+        _offline.ActiveTripId = null;
         await PersistAndNotifyAsync();
     }
 
     public async Task<bool> AddTripFuelAsync(decimal gallons, decimal totalCost, int odometer, string station, string fuelGrade)
     {
-        if (_offline.ActiveTrip is null)
+        var trip = ActiveTrip;
+        if (trip is null)
         {
             return false;
         }
 
-        var trip = _offline.ActiveTrip;
         await AddFuelRecordAsync(new FuelRecord
         {
             VehicleId = trip.VehicleId,
+            TripId = trip.Id,
             FillDate = DateOnly.FromDateTime(DateTime.Today),
             Odometer = odometer,
             Gallons = gallons,
@@ -545,29 +560,57 @@ public class WrenchWiseService
             FullTank = true,
             Station = station,
             FuelGrade = string.IsNullOrWhiteSpace(fuelGrade) ? "Regular" : fuelGrade,
-            AdditiveNotes = $"Trip: {trip.TripName}"
+            AdditiveNotes = $"Trip: {trip.Name}"
         });
         return true;
     }
 
-    public async Task<bool> AddTripExpenseAsync(decimal amount, int odometer, string description)
+    public async Task<bool> AddTripExpenseAsync(string category, decimal amount, string notes)
     {
-        if (_offline.ActiveTrip is null)
+        var trip = ActiveTrip;
+        if (trip is null)
         {
             return false;
         }
 
-        var trip = _offline.ActiveTrip;
-        await AddMaintenanceRecordAsync(new MaintenanceRecord
+        var expense = new TripExpense
         {
-            VehicleId = trip.VehicleId,
-            ServiceDate = DateOnly.FromDateTime(DateTime.Today),
-            Odometer = odometer,
-            Cost = amount,
-            ServiceType = $"Trip Expense: {(string.IsNullOrWhiteSpace(description) ? "Misc" : description.Trim())}",
-            ShopName = "Trip"
-        });
+            TripId = trip.Id,
+            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
+            Category = category,
+            Amount = amount,
+            Notes = notes,
+            UpdatedUtc = DateTime.UtcNow
+        };
+
+        _offline.Store.TripExpenses.Add(expense);
+        QueueUpsert(SyncOperationType.UpsertTripExpense, expense.Id, expense);
+        await PersistAndNotifyAsync();
         return true;
+    }
+
+    public async Task DeleteTripExpenseAsync(Guid expenseId)
+    {
+        _offline.Store.TripExpenses.RemoveAll(x => x.Id == expenseId);
+        QueueDelete(SyncOperationType.DeleteTripExpense, expenseId);
+        await PersistAndNotifyAsync();
+    }
+
+    public async Task DeleteTripAsync(Guid tripId)
+    {
+        _offline.Store.Trips.RemoveAll(x => x.Id == tripId);
+        
+        // Remove TripId from related records
+        foreach(var f in _offline.Store.FuelRecords.Where(x => x.TripId == tripId)) f.TripId = null;
+        foreach(var m in _offline.Store.MaintenanceRecords.Where(x => x.TripId == tripId)) m.TripId = null;
+        
+        // Delete Trip Expenses completely as they are orphaned
+        var expenses = _offline.Store.TripExpenses.Where(x => x.TripId == tripId).ToList();
+        _offline.Store.TripExpenses.RemoveAll(x => x.TripId == tripId);
+        foreach(var e in expenses) QueueDelete(SyncOperationType.DeleteTripExpense, e.Id);
+        
+        QueueDelete(SyncOperationType.DeleteTrip, tripId);
+        await PersistAndNotifyAsync();
     }
 
     public async Task<string?> AttachReceiptPhotoAsync(Guid fuelRecordId)
@@ -1150,7 +1193,7 @@ public class OfflineStore
     public string DeviceId { get; set; } = Guid.NewGuid().ToString("N");
     public string ApiBaseUrl { get; set; } = "http://192.168.1.10:18080";
     public Guid ActiveVehicleId { get; set; }
-    public TripState? ActiveTrip { get; set; }
+    public Guid? ActiveTripId { get; set; }
     public DateTime LastSyncUtc { get; set; }
     public WrenchWiseStore Store { get; set; } = new();
     public List<SyncOperation> PendingOperations { get; set; } = [];
@@ -1160,10 +1203,3 @@ public record MonthlySpend(string Month, decimal Fuel, decimal Maintenance, deci
 public record GradeMpg(string Grade, decimal Mpg);
 public record FuelSegment(decimal Miles, decimal Gallons, string Grade);
 public record ImportResult(bool Success, string Message);
-public class TripState
-{
-    public Guid VehicleId { get; set; }
-    public string TripName { get; set; } = string.Empty;
-    public DateOnly StartDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
-    public int StartOdometer { get; set; }
-}

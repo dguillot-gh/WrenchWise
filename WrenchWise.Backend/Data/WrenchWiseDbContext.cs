@@ -13,6 +13,8 @@ public class WrenchWiseDbContext(DbContextOptions<WrenchWiseDbContext> options) 
     public DbSet<VehicleProject> VehicleProjects => Set<VehicleProject>();
     public DbSet<VehicleDocument> VehicleDocuments => Set<VehicleDocument>();
     public DbSet<ActivityLogEntry> ActivityLog => Set<ActivityLogEntry>();
+    public DbSet<Trip> Trips => Set<Trip>();
+    public DbSet<TripExpense> TripExpenses => Set<TripExpense>();
     public DbSet<AppliedSyncOperation> AppliedSyncOperations => Set<AppliedSyncOperation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -28,6 +30,8 @@ public class WrenchWiseDbContext(DbContextOptions<WrenchWiseDbContext> options) 
         modelBuilder.Entity<ServiceReminder>().HasKey(x => x.Id);
         modelBuilder.Entity<VehicleProject>().HasKey(x => x.Id);
         modelBuilder.Entity<VehicleDocument>().HasKey(x => x.Id);
+        modelBuilder.Entity<Trip>().HasKey(x => x.Id);
+        modelBuilder.Entity<TripExpense>().HasKey(x => x.Id);
 
         modelBuilder.Entity<ActivityLogEntry>().HasKey(x => x.Id);
         modelBuilder.Entity<ActivityLogEntry>()

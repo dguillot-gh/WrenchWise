@@ -11,5 +11,6 @@ public class MaintenanceRecord
     public string ShopName { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public List<ServicePart> Parts { get; set; } = new();
+    public Guid? TripId { get; set; }
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }

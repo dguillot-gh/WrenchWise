@@ -11,17 +11,18 @@
 @if (WrenchWise.ActiveTrip != null)
 {
     var tripSpan = (DateOnly.FromDateTime(DateTime.Today).DayNumber - WrenchWise.ActiveTrip.StartDate.DayNumber) + 1;
-    <MudAlert Severity="Severity.Normal" Variant="Variant.Filled" Class="mb-5 rounded-lg" Style="background-color: var(--mud-palette-primary-dark);">
-        <div class="d-flex align-center justify-space-between w-100">
-            <div class="d-flex align-center gap-3">
-                <MudIcon Icon="@Icons.Material.Filled.Map" Color="Color.Surface" />
-                <div>
-                    <MudText Typo="Typo.subtitle2"><b>Active Trip: @WrenchWise.ActiveTrip.TripName</b></MudText>
-                    <MudText Typo="Typo.caption" Class="opacity-70">Started at @WrenchWise.ActiveTrip.StartOdometer.ToString("N0") mi • Day @tripSpan</MudText>
-                </div>
+    <MudItem xs="12">
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" 
+                  Icon="@Icons.Material.Filled.Map" 
+                  Class="mb-4"
+                  OnClick="@(() => Nav.NavigateTo("trip-mode"))"
+                  Style="cursor:pointer">
+            <div class="d-flex flex-column">
+                <MudText Typo="Typo.subtitle2"><b>Active Trip: @WrenchWise.ActiveTrip.Name</b></MudText>
+                <MudText Typo="Typo.caption" Class="opacity-70">Started at @WrenchWise.ActiveTrip.StartOdometer.ToString("N0") mi • Day @tripSpan</MudText>
             </div>
-        </div>
-    </MudAlert>
+        </MudAlert>
+    </MudItem>
 }
 
 @if (!_ready)

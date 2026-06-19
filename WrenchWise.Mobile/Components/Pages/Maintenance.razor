@@ -330,6 +330,12 @@ else
 
         _record.ServiceDate = DateOnly.FromDateTime(_serviceDate ?? DateTime.Today);
         
+        // Auto-tag to active trip if applicable
+        if (!_isEditing && WrenchWise.ActiveTripId.HasValue && WrenchWise.ActiveTrip?.VehicleId == _record.VehicleId)
+        {
+            _record.TripId = WrenchWise.ActiveTripId.Value;
+        }
+        
         if (_isEditing)
         {
             await WrenchWise.UpdateMaintenanceRecordAsync(_record);
@@ -355,6 +361,7 @@ else
         {
             Id = record.Id,
             VehicleId = record.VehicleId,
+            TripId = record.TripId,
             ServiceDate = record.ServiceDate,
             Odometer = record.Odometer,
             Cost = record.Cost,

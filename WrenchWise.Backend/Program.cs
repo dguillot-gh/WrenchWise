@@ -23,7 +23,9 @@ if (app.Environment.IsDevelopment())
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<WrenchWiseDbContext>();
-    await db.Database.MigrateAsync();
+    // We rely on the docker-entrypoint-initdb.d/schema-update.sql script to build the DB,
+    // so we don't need EF Core to attempt to run migrations (which causes Postgres to log an error).
+    // await db.Database.MigrateAsync();
 }
 
 app.MapGet("/api/health", () => Results.Ok(new
@@ -377,6 +379,8 @@ static async Task<WrenchWiseStore> BuildStoreAsync(WrenchWiseDbContext db)
         TireRecords = await db.TireRecords.AsNoTracking().OrderByDescending(x => x.InstalledDate).ToListAsync(),
         VehicleProjects = await db.VehicleProjects.AsNoTracking().OrderByDescending(x => x.UpdatedUtc).ToListAsync(),
         VehicleDocuments = await db.VehicleDocuments.AsNoTracking().OrderByDescending(x => x.UpdatedUtc).ToListAsync(),
+        Trips = await db.Trips.AsNoTracking().OrderByDescending(x => x.StartDate).ToListAsync(),
+        TripExpenses = await db.TripExpenses.AsNoTracking().OrderByDescending(x => x.ExpenseDate).ToListAsync(),
         ActivityLog = await db.ActivityLog.AsNoTracking().OrderByDescending(x => x.TimestampUtc).Take(200).ToListAsync()
     };
 }
@@ -390,6 +394,8 @@ static async Task ReplaceStoreFromFallbackAsync(WrenchWiseStore fallback, Wrench
     db.TireRecords.RemoveRange(db.TireRecords);
     db.VehicleProjects.RemoveRange(db.VehicleProjects);
     db.VehicleDocuments.RemoveRange(db.VehicleDocuments);
+    db.Trips.RemoveRange(db.Trips);
+    db.TripExpenses.RemoveRange(db.TripExpenses);
     await db.SaveChangesAsync();
 
     db.Vehicles.AddRange(fallback.Vehicles);
@@ -399,6 +405,8 @@ static async Task ReplaceStoreFromFallbackAsync(WrenchWiseStore fallback, Wrench
     db.TireRecords.AddRange(fallback.TireRecords);
     db.VehicleProjects.AddRange(fallback.VehicleProjects);
     db.VehicleDocuments.AddRange(fallback.VehicleDocuments);
+    db.Trips.AddRange(fallback.Trips);
+    db.TripExpenses.AddRange(fallback.TripExpenses);
 }
 
 static Task ApplyOperationAsync(SyncOperation operation, WrenchWiseDbContext db, JsonSerializerOptions serializerOptions)
@@ -433,6 +441,14 @@ static Task ApplyOperationAsync(SyncOperation operation, WrenchWiseDbContext db,
             return UpsertDocumentAsync(operation.PayloadJson, db, serializerOptions);
         case SyncOperationType.DeleteDocument:
             return DeleteDocumentAsync(operation.EntityId, db);
+        case SyncOperationType.UpsertTrip:
+            return UpsertTripAsync(operation.PayloadJson, db, serializerOptions);
+        case SyncOperationType.DeleteTrip:
+            return DeleteTripAsync(operation.EntityId, db);
+        case SyncOperationType.UpsertTripExpense:
+            return UpsertTripExpenseAsync(operation.PayloadJson, db, serializerOptions);
+        case SyncOperationType.DeleteTripExpense:
+            return DeleteTripExpenseAsync(operation.EntityId, db);
         default:
             return Task.CompletedTask;
     }
@@ -541,6 +557,7 @@ static async Task DeleteVehicleAsync(Guid id, WrenchWiseDbContext db)
     db.FuelRecords.RemoveRange(db.FuelRecords.Where(x => x.VehicleId == id));
     db.ServiceReminders.RemoveRange(db.ServiceReminders.Where(x => x.VehicleId == id));
     db.TireRecords.RemoveRange(db.TireRecords.Where(x => x.VehicleId == id));
+    db.Trips.RemoveRange(db.Trips.Where(x => x.VehicleId == id));
 }
 
 static async Task DeleteMaintenanceAsync(Guid id, WrenchWiseDbContext db)
@@ -624,6 +641,64 @@ static async Task DeleteDocumentAsync(Guid id, WrenchWiseDbContext db)
     if (document is not null)
     {
         db.VehicleDocuments.Remove(document);
+    }
+}
+
+static async Task UpsertTripAsync(string payloadJson, WrenchWiseDbContext db, JsonSerializerOptions serializerOptions)
+{
+    var incoming = JsonSerializer.Deserialize<Trip>(payloadJson, serializerOptions);
+    if (incoming is null) return;
+
+    var existing = await db.Trips.FindAsync(incoming.Id);
+    if (existing is null)
+    {
+        db.Trips.Add(incoming);
+        return;
+    }
+
+    db.Entry(existing).CurrentValues.SetValues(incoming);
+}
+
+static async Task DeleteTripAsync(Guid id, WrenchWiseDbContext db)
+{
+    var trip = await db.Trips.FindAsync(id);
+    if (trip is not null)
+    {
+        db.Trips.Remove(trip);
+        
+        // Also untag fuel and maintenance records when a trip is deleted
+        var fuelRecords = db.FuelRecords.Where(x => x.TripId == id);
+        foreach(var f in fuelRecords) f.TripId = null;
+        
+        
+        var mainRecords = db.MaintenanceRecords.Where(x => x.TripId == id);
+        foreach(var m in mainRecords) m.TripId = null;
+        
+        db.TripExpenses.RemoveRange(db.TripExpenses.Where(x => x.TripId == id));
+    }
+}
+
+static async Task UpsertTripExpenseAsync(string payloadJson, WrenchWiseDbContext db, JsonSerializerOptions serializerOptions)
+{
+    var incoming = JsonSerializer.Deserialize<TripExpense>(payloadJson, serializerOptions);
+    if (incoming is null) return;
+
+    var existing = await db.TripExpenses.FindAsync(incoming.Id);
+    if (existing is null)
+    {
+        db.TripExpenses.Add(incoming);
+        return;
+    }
+
+    db.Entry(existing).CurrentValues.SetValues(incoming);
+}
+
+static async Task DeleteTripExpenseAsync(Guid id, WrenchWiseDbContext db)
+{
+    var expense = await db.TripExpenses.FindAsync(id);
+    if (expense is not null)
+    {
+        db.TripExpenses.Remove(expense);
     }
 }
 

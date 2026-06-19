@@ -15,5 +15,9 @@ public enum SyncOperationType
     UpsertProject,
     DeleteProject,
     UpsertDocument,
-    DeleteDocument
+    DeleteDocument,
+    UpsertTrip,
+    DeleteTrip,
+    UpsertTripExpense,
+    DeleteTripExpense
 }

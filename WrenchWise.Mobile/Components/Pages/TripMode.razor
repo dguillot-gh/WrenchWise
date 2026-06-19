@@ -1,42 +1,219 @@
 @page "/trip-mode"
 @implements IDisposable
 @inject WrenchWiseService WrenchWise
+@inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Trip Mode</PageTitle>
 
-<MudText Typo="Typo.h5" Class="mb-4">Trip Mode</MudText>
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h5">Trip Mode</MudText>
+    @if (WrenchWise.ActiveTrip == null)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenStartTripDialog" StartIcon="@Icons.Material.Filled.Add">
+            Start New Trip
+        </MudButton>
+    }
+</div>
 
-<MudPaper Class="pa-12 d-flex flex-column align-center justify-center text-center"
-          Style="min-height: 400px; background: linear-gradient(180deg, var(--mud-palette-surface) 0%, rgba(53, 194, 161, 0.05) 100%);"
-          Elevation="1">
+@if (WrenchWise.ActiveTrip != null)
+{
+    var trip = WrenchWise.ActiveTrip;
+    var currentOdo = WrenchWise.GetSuggestedOdometer(trip.VehicleId);
+    var milesDriven = currentOdo - trip.StartOdometer;
+    var tripSpan = (DateOnly.FromDateTime(DateTime.Today).DayNumber - trip.StartDate.DayNumber) + 1;
+    
+    var tripFuel = WrenchWise.FuelRecords.Where(x => x.TripId == trip.Id).ToList();
+    var tripMaintenance = WrenchWise.MaintenanceRecords.Where(x => x.TripId == trip.Id).ToList();
+    var tripExpenses = WrenchWise.TripExpenses.Where(x => x.TripId == trip.Id).ToList();
+    
+    var totalFuelCost = tripFuel.Sum(x => x.TotalCost);
+    var totalExpenses = tripMaintenance.Sum(x => x.Cost) + tripExpenses.Sum(x => x.Amount);
+    var totalCost = totalFuelCost + totalExpenses;
 
-    <MudIcon Icon="@Icons.Material.Filled.Explore"
-             Color="Color.Primary"
-             Size="Size.Large"
-             Style="font-size: 80px;"
-             Class="mb-6 opacity-80" />
+    <MudCard Class="mb-6 rounded-lg" Elevation="2">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@trip.Name</MudText>
+                <MudText Typo="Typo.caption" Class="opacity-70">Started @trip.StartDate.ToShortDateString() • Day @tripSpan</MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">Active</MudChip>
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="4">
+                    <div class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.h4" Color="Color.Primary">@milesDriven</MudText>
+                        <MudText Typo="Typo.caption" Class="opacity-70">Miles</MudText>
+                    </div>
+                </MudItem>
+                <MudItem xs="4">
+                    <div class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.h4" Color="Color.Error">@totalCost.ToString("C0")</MudText>
+                        <MudText Typo="Typo.caption" Class="opacity-70">Cost</MudText>
+                    </div>
+                </MudItem>
+                <MudItem xs="4">
+                    <div class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.h4" Color="Color.Info">@tripFuel.Count</MudText>
+                        <MudText Typo="Typo.caption" Class="opacity-70">Fill-ups</MudText>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+        <MudCardActions Class="d-flex justify-space-between pa-4">
+            <div>
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.LocalGasStation" Class="mr-2" OnClick="OpenAddFuelDialog">Fuel</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Receipt" OnClick="OpenAddExpenseDialog">Expense</MudButton>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Flag" OnClick="OpenEndTripDialog">End Trip</MudButton>
+        </MudCardActions>
+    </MudCard>
+}
 
-    <MudText Typo="Typo.h4" GutterBottom="true" Style="font-weight: 700;">Coming Soon</MudText>
+<MudText Typo="Typo.h6" Class="mb-4">Past Trips</MudText>
 
-    <MudText Typo="Typo.body1" Class="opacity-70" Style="max-width: 300px;">
-        We are currently building Trip Mode! Soon you'll be able to group fuel and service records into defined trips.
-    </MudText>
-
-    <MudButton Variant="Variant.Outlined"
-               Color="Color.Primary"
-               Class="mt-8 rounded-pill px-8"
-               Href="home">
-        Back to Dashboard
-    </MudButton>
-</MudPaper>
+@if (_pastTrips.Count == 0 && WrenchWise.ActiveTrip == null)
+{
+    <MudPaper Class="pa-8 text-center" Elevation="0" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.Explore" Size="Size.Large" Class="mb-4 opacity-50" />
+        <MudText Typo="Typo.h6" Class="opacity-70">No trips yet</MudText>
+        <MudText Typo="Typo.body2" Class="opacity-50">Start a new trip to track fuel and expenses on the road.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudStack Spacing="3">
+        @foreach (var pt in _pastTrips)
+        {
+            var ptDays = (pt.EndDate.GetValueOrDefault(DateOnly.FromDateTime(DateTime.Today)).DayNumber - pt.StartDate.DayNumber) + 1;
+            var ptMiles = pt.EndOdometer.GetValueOrDefault(0) - pt.StartOdometer;
+            
+            <MudPaper Class="pa-4 d-flex align-center cursor-pointer mud-ripple" Elevation="1" @onclick="@(() => Nav.NavigateTo($"trip/{pt.Id}"))">
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="mr-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Map" />
+                </MudAvatar>
+                <div class="flex-grow-1">
+                    <MudText Typo="Typo.subtitle1"><b>@pt.Name</b></MudText>
+                    <MudText Typo="Typo.caption" Class="opacity-70">@pt.StartDate.ToShortDateString() • @ptDays Days • @ptMiles mi</MudText>
+                </div>
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Class="opacity-50" />
+            </MudPaper>
+        }
+    </MudStack>
+}
 
 @code {
+    private List<WrenchWise.Shared.Models.Trip> _pastTrips = new();
+
     protected override async Task OnInitializedAsync()
     {
         await WrenchWise.InitializeAsync();
+        RefreshData();
         WrenchWise.Changed += HandleChanged;
     }
 
-    private void HandleChanged() => InvokeAsync(StateHasChanged);
+    private void HandleChanged()
+    {
+        RefreshData();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshData()
+    {
+        _pastTrips = WrenchWise.Trips
+            .Where(x => x.Id != WrenchWise.ActiveTrip?.Id && x.EndDate.HasValue)
+            .OrderByDescending(x => x.StartDate)
+            .ToList();
+    }
+
     public void Dispose() => WrenchWise.Changed -= HandleChanged;
+
+    // We'll use simple prompts for these since they just need minimal data for now
+    private async Task OpenStartTripDialog()
+    {
+        var parameters = new DialogParameters<SimpleInputDialog>
+        {
+            { x => x.Title, "Start New Trip" },
+            { x => x.Label, "Trip Name" },
+            { x => x.HelperText, "e.g., Road Trip 2026" }
+        };
+        var dialog = await DialogService.ShowAsync<SimpleInputDialog>("Start Trip", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is string name && !string.IsNullOrWhiteSpace(name))
+        {
+            var startOdo = WrenchWise.GetSuggestedOdometer(WrenchWise.ActiveVehicleId);
+            var success = await WrenchWise.StartTripAsync(WrenchWise.ActiveVehicleId, name, startOdo);
+            if (!success)
+            {
+                Snackbar.Add("Could not start trip. Ensure you have an active vehicle selected.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEndTripDialog()
+    {
+        var trip = WrenchWise.ActiveTrip;
+        if (trip == null) return;
+        
+        var currentOdo = WrenchWise.GetSuggestedOdometer(trip.VehicleId);
+        
+        var parameters = new DialogParameters<SimpleNumericInputDialog>
+        {
+            { x => x.Title, "End Trip" },
+            { x => x.Label, "Ending Odometer" },
+            { x => x.Value, currentOdo }
+        };
+        var dialog = await DialogService.ShowAsync<SimpleNumericInputDialog>("End Trip", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is int endOdo)
+        {
+            await WrenchWise.EndTripAsync(endOdo);
+        }
+    }
+    
+    private async Task OpenAddFuelDialog()
+    {
+        Nav.NavigateTo("fuel"); // Just navigate to Fuel, it will pick up the active trip automatically
+    }
+    
+    private async Task OpenAddExpenseDialog()
+    {
+        var trip = WrenchWise.ActiveTrip;
+        if (trip == null) return;
+        
+        var odo = WrenchWise.GetSuggestedOdometer(trip.VehicleId);
+        
+        var parameters = new DialogParameters<TripExpenseDialog>
+        {
+            { x => x.CurrentOdometer, odo }
+        };
+        var dialog = await DialogService.ShowAsync<TripExpenseDialog>("Add Expense", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is TripExpenseDialog.TripExpenseResult res)
+        {
+            if (res.IsVehicleExpense)
+            {
+                await WrenchWise.AddMaintenanceRecordAsync(new WrenchWise.Shared.Models.MaintenanceRecord {
+                    VehicleId = trip.VehicleId,
+                    TripId = trip.Id,
+                    Odometer = res.Odometer,
+                    Cost = res.Amount,
+                    ServiceType = res.ServiceType,
+                    ShopName = "Trip Repair",
+                    ServiceDate = DateOnly.FromDateTime(DateTime.Today)
+                });
+            }
+            else
+            {
+                await WrenchWise.AddTripExpenseAsync(res.Category, res.Amount, res.Notes);
+            }
+        }
+    }
 }
