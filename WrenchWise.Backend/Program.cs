@@ -23,9 +23,77 @@ if (app.Environment.IsDevelopment())
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<WrenchWiseDbContext>();
-    // We rely on the docker-entrypoint-initdb.d/schema-update.sql script to build the DB,
-    // so we don't need EF Core to attempt to run migrations (which causes Postgres to log an error).
-    // await db.Database.MigrateAsync();
+    // Automatically apply our idempotent schema updates on startup to ensure Prod DB stays up to date
+    var schemaSql = @"
+        ALTER TABLE ""MaintenanceRecords"" ADD COLUMN IF NOT EXISTS ""Parts"" jsonb;
+        ALTER TABLE ""TireRecords"" ADD COLUMN IF NOT EXISTS ""Rotations"" jsonb;
+        ALTER TABLE ""Vehicles"" ADD COLUMN IF NOT EXISTS ""ColorHex"" text DEFAULT '#594AE2';
+
+        CREATE TABLE IF NOT EXISTS ""VehicleProjects"" (
+            ""Id"" uuid NOT NULL PRIMARY KEY,
+            ""VehicleId"" uuid NOT NULL,
+            ""Title"" text NOT NULL DEFAULT '',
+            ""Description"" text NOT NULL DEFAULT '',
+            ""EstimatedCost"" numeric NOT NULL DEFAULT 0,
+            ""ActualCost"" numeric NOT NULL DEFAULT 0,
+            ""TargetDate"" date,
+            ""Status"" text NOT NULL DEFAULT '',
+            ""UpdatedUtc"" timestamp with time zone NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS ""VehicleDocuments"" (
+            ""Id"" uuid NOT NULL PRIMARY KEY,
+            ""VehicleId"" uuid NOT NULL,
+            ""DocumentType"" text NOT NULL DEFAULT '',
+            ""Provider"" text NOT NULL DEFAULT '',
+            ""PolicyNumber"" text NOT NULL DEFAULT '',
+            ""EffectiveDate"" date,
+            ""ExpirationDate"" date,
+            ""PremiumCost"" numeric NOT NULL DEFAULT 0,
+            ""Notes"" text NOT NULL DEFAULT '',
+            ""FilePath"" text NOT NULL DEFAULT '',
+            ""FileName"" text NOT NULL DEFAULT '',
+            ""UpdatedUtc"" timestamp with time zone NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS ""ActivityLog"" (
+            ""Id"" uuid NOT NULL PRIMARY KEY,
+            ""TimestampUtc"" timestamp with time zone NOT NULL DEFAULT now(),
+            ""Category"" text NOT NULL DEFAULT '',
+            ""Message"" text NOT NULL DEFAULT '',
+            ""Details"" text NOT NULL DEFAULT '',
+            ""Severity"" text NOT NULL DEFAULT 'Info',
+            ""VehicleId"" uuid,
+            ""EntityId"" uuid
+        );
+
+        CREATE INDEX IF NOT EXISTS ""IX_ActivityLog_TimestampUtc"" ON ""ActivityLog"" (""TimestampUtc"");
+
+        ALTER TABLE ""FuelRecords"" ADD COLUMN IF NOT EXISTS ""TripId"" uuid;
+        ALTER TABLE ""MaintenanceRecords"" ADD COLUMN IF NOT EXISTS ""TripId"" uuid;
+
+        CREATE TABLE IF NOT EXISTS ""Trips"" (
+            ""Id"" uuid NOT NULL PRIMARY KEY,
+            ""VehicleId"" uuid NOT NULL,
+            ""Name"" text NOT NULL DEFAULT '',
+            ""StartDate"" date NOT NULL,
+            ""StartOdometer"" integer NOT NULL,
+            ""EndDate"" date,
+            ""EndOdometer"" integer,
+            ""UpdatedUtc"" timestamp with time zone NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS ""TripExpenses"" (
+            ""Id"" uuid NOT NULL PRIMARY KEY,
+            ""TripId"" uuid NOT NULL,
+            ""ExpenseDate"" date NOT NULL,
+            ""Category"" text NOT NULL DEFAULT '',
+            ""Amount"" numeric NOT NULL DEFAULT 0,
+            ""Notes"" text NOT NULL DEFAULT '',
+            ""UpdatedUtc"" timestamp with time zone NOT NULL DEFAULT now()
+        );
+    ";
+    await db.Database.ExecuteSqlRawAsync(schemaSql);
 }
 
 app.MapGet("/api/health", () => Results.Ok(new
